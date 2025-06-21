@@ -28,7 +28,7 @@ class AbstractAgent(ABC):
     
     def train(self, training_data: DataLoader, evaluation_data: DataLoader,
               optimizer: Optimizer, loss_fn: LossFunction,
-              start_epoch: int = 0, epochs: int = 100):
+              start_epoch: int = 0, epochs: int = 100, quiet: bool = False):
         assert start_epoch < epochs, f"start_epoch (given {start_epoch}) must be less than epochs (given {epochs})"
 
         with tqdm(total=epochs, leave=True, position=0) as pbar:
@@ -44,10 +44,11 @@ class AbstractAgent(ABC):
                     self._perform_evaluation_epoch(epoch, evaluation_data, loss_fn)
                     
                 pbar.update(1)
-                postfix_metrics = {'train_loss': self._metrics['train']['loss'][-1], 'train_acc': self._metrics['train']['accuracy'][-1],
-                                   'val_loss': self._metrics['validation']['loss'][-1], 'val_acc': self._metrics['validation']['accuracy'][-1]
-                                   }
-                pbar.set_postfix(**postfix_metrics)
+                if not quiet:
+                    postfix_metrics = {'train_loss': self._metrics['train']['loss'][-1],
+                                    'val_loss': self._metrics['validation']['loss'][-1]
+                                    }
+                    pbar.set_postfix(**postfix_metrics)
 
         return self._metrics['train'], self._metrics['validation']
     

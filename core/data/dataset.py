@@ -37,3 +37,7 @@ class Dataset():
     def __getitem__(self, index):
         return self._sources[index], self._targets[index]
     
+
+    def __repr__(self):
+        return f"Number of samples: {self._sources.size(0)}"
+    

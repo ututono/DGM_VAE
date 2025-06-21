@@ -28,10 +28,9 @@ class Metrics():
         return self._metrics
 
 
-    def update(self, epoch, batch_loss, accuracy, **kwargs) -> None:
+    def update(self, epoch, batch_loss, **kwargs) -> None:
         self._metrics["epoch"].append(epoch+1)
         self._metrics["loss"].append(batch_loss)
-        self._metrics["accuracy"].append(accuracy)
 
         for key, value in kwargs.items():
             self._metrics[key].append(value)

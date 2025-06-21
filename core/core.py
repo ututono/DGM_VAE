@@ -2,7 +2,7 @@ from core.agent import AbstractAgent
 from core.optimizer import Optimizer
 from core.loss_function import LossFunction
 from core.data.dataset import Dataset
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 import numpy as np
 
@@ -19,10 +19,12 @@ class Core():
         self._critetion = loss_function
 
 
-    def train(self, training_data, evaluation_data=None, batch_size=64, epochs=100):
+    def train(self, training_data, evaluation_data=None, batch_size=64, epochs=100, quiet=False):
         training_dataloader = DataLoader(training_data, batch_size=batch_size)
         evaluation_dataloader = DataLoader(evaluation_data, batch_size=batch_size) if evaluation_data else None
-        return self._agent.train(training_dataloader, evaluation_dataloader, self._optimizer, self._critetion, epochs=epochs)
+        return self._agent.train(training_dataloader, evaluation_dataloader,
+                                 self._optimizer, self._critetion,
+                                 epochs=epochs, quiet=quiet)
 
 
     def test(self, data):
@@ -31,22 +33,15 @@ class Core():
 
 
     def build_dataset(self, *data,
-                      type: str = "numpy", evaluation: bool = True, one_hot: bool=False,
-                      num_classes: bool = 0):
+                      backend_type: str = "numpy", one_hot: bool=False,
+                      num_classes: bool = 0, device: str = "cpu"):
         assert len(data) > 0, "No data given for building a dataset"
         load_data = False
         if isinstance(data[0], (str, Path)):
             load_data = True
 
-        dataset_types = {
-            "numpy": Dataset
-        }
-
-        return dataset_types[type].build_dataset(*data,
-                                                 eval=evaluation,
-                                                 load_data=load_data,
-                                                 one_hot=one_hot,
-                                                 num_classes=num_classes)
+        return Dataset(sources=data[0], targets=data[1], device=device, backend=backend_type,
+                       load_data=load_data, one_hot=one_hot, num_classes=num_classes)
 
 
     def split_data_train_test(self, src, target, test_size=0.2):
