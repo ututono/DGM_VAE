@@ -35,14 +35,14 @@ class VAELoss(nn.Module):
 
 
     def forward(self, x: torch.Tensor, y: torch.Tensor):
-        return F.binary_cross_entropy(x, y.unsqueeze(-1))
+        return F.binary_cross_entropy(x, y)
 
 
 
 
 def run_experiment():
-    # device = "cuda" if torch.cuda.is_available() else "cpu"
-    device = 'cpu'
+    torch.manual_seed(0)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     print(device)
 
     X, y = make_circles(n_samples=5000, noise=0.03, random_state=0)

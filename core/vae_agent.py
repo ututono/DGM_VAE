@@ -32,7 +32,7 @@ class VariationalAutoEncoder(AbstractAgent):
 
         for x, y in train_dataloader:
             x: torch.Tensor = x.to(self._device)
-            y: torch.Tensor = y.to(self._device)
+            y: torch.Tensor = y.unsqueeze(-1).to(self._device)
 
             yhat: torch.Tensor = self._model(x)
             loss: torch.Tensor = loss_fn(yhat, y)
@@ -56,10 +56,10 @@ class VariationalAutoEncoder(AbstractAgent):
         with torch.no_grad():
             for x, y in eval_dataloader:
                 x_val: torch.Tensor = x.to(self._device)
-                y_val: torch.Tensor = y.to(self._device)
+                y_val: torch.Tensor = y.unsqueeze(-1).to(self._device)
                 yhat_val = self._model(x_val)
 
-                loss: torch.Tensor = loss_fn(yhat_val, y)
+                loss: torch.Tensor = loss_fn(yhat_val, y_val)
                 epoch_losses_val.append(loss.item())
                 total_samples += y_val.size(0)
                 epoch_loss_validation: float = sum(epoch_losses_val) / total_samples
