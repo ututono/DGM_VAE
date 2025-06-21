@@ -20,8 +20,8 @@ class Core():
 
 
     def train(self, training_data, evaluation_data=None, batch_size=64, epochs=100, quiet=False):
-        training_dataloader = DataLoader(training_data, batch_size=batch_size)
-        evaluation_dataloader = DataLoader(evaluation_data, batch_size=batch_size) if evaluation_data else None
+        training_dataloader = DataLoader(training_data, batch_size=batch_size, shuffle=True)
+        evaluation_dataloader = DataLoader(evaluation_data, batch_size=batch_size, shuffle=True) if evaluation_data else None
         return self._agent.train(training_dataloader, evaluation_dataloader,
                                  self._optimizer, self._critetion,
                                  epochs=epochs, quiet=quiet)
@@ -44,7 +44,8 @@ class Core():
                        load_data=load_data, one_hot=one_hot, num_classes=num_classes)
 
 
-    def split_data_train_test(self, src, target, test_size=0.2):
+    @staticmethod
+    def split_data_train_test(src, target, test_size=0.2):
         X_train, X_test, y_train, y_test = train_test_split(src, target, test_size=test_size)
 
         return X_train, y_train, X_test, y_test

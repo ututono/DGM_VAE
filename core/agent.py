@@ -46,11 +46,11 @@ class AbstractAgent(ABC):
                 pbar.update(1)
                 if not quiet:
                     postfix_metrics = {'train_loss': self._metrics['train']['loss'][-1],
-                                    'val_loss': self._metrics['validation']['loss'][-1]
+                                    # 'val_loss': self._metrics['validation']['loss'][-1]
                                     }
                     pbar.set_postfix(**postfix_metrics)
 
-        return self._metrics['train'], self._metrics['validation']
+        return self._metrics['train'], self._metrics['validation'] if evaluation_data is not None else None
     
 
     @abstractmethod

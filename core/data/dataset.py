@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 
 class Dataset():
-    def __init__(self, sources, targets, device: str, backend: str = 'numpy', load_data: bool = False,
+    def __init__(self, sources, targets = None, device: str = 'cpu', backend: str = 'numpy', load_data: bool = False,
                  one_hot: bool = False, num_classes: int = -1):
         if backend == "numpy":
             self._backend = NumpyBackend(device=device)

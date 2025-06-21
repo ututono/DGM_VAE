@@ -17,7 +17,7 @@ class VariationalAutoEncoder(AbstractAgent):
         metrics = {
             'train': train_metrics,
             'validation': val_metrics,
-            'test': test_metrics
+            # 'test': test_metrics
         }
         super().__init__(model=model, device=device, metrics=metrics)
 
@@ -30,14 +30,13 @@ class VariationalAutoEncoder(AbstractAgent):
         epoch_losses = list()
         total_samples = 0
 
-        for x, y in train_dataloader:
+        for x, _ in train_dataloader:
             x: torch.Tensor = x.to(self._device)
-            y: torch.Tensor = y.unsqueeze(-1).to(self._device)
 
-            yhat: torch.Tensor = self._model(x)
-            loss: torch.Tensor = loss_fn(yhat, y)
+            x_hat, mu, logvar = self._model(x)
+            loss: torch.Tensor = loss_fn(x_hat, mu, logvar, x)
             epoch_losses.append(loss.item())
-            total_samples += y.size(0)
+            total_samples += x.size(0)
 
             optimizer.zero_grad()
             loss.backward()
@@ -54,22 +53,23 @@ class VariationalAutoEncoder(AbstractAgent):
         total_samples = 0
         
         with torch.no_grad():
-            for x, y in eval_dataloader:
+            for x in eval_dataloader:
                 x_val: torch.Tensor = x.to(self._device)
-                y_val: torch.Tensor = y.unsqueeze(-1).to(self._device)
-                yhat_val = self._model(x_val)
+                xhat_val, mu, logvar = self._model(x_val)
 
-                loss: torch.Tensor = loss_fn(yhat_val, y_val)
+                loss: torch.Tensor = loss_fn(xhat_val, mu, logvar, x_val)
                 epoch_losses_val.append(loss.item())
-                total_samples += y_val.size(0)
+                total_samples += x_val.size(0)
                 epoch_loss_validation: float = sum(epoch_losses_val) / total_samples
 
-            self._metrics['validation'].update(epoch=epoch, batch_loss=epoch_loss_validation)
+            # self._metrics['validation'].update(epoch=epoch, batch_loss=epoch_loss_validation)
 
 
     def test(self, test_data):
         return
 
 
-    def predict(self, x: torch.Tensor) -> torch.Tensor:
-        ...
+    def predict(self, num_samples: int = 1) -> torch.Tensor:
+        with torch.no_grad():
+            noise = torch.randn(num_samples)
+            

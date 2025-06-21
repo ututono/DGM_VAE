@@ -22,9 +22,8 @@ class LossFunction(nn.Module):
     def _get_targets(self, targets: torch.Tensor) -> torch.Tensor:
         if isinstance(self._loss_function, (nn.CrossEntropyLoss, nn.NLLLoss)):
             return torch.max(targets, 1)[1].to(self._device)
-        return targets
+        return targets.to(self._device)
 
 
-    def forward(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        labels = self._get_targets(target)
-        return self._loss_function(prediction, labels)
+    def forward(self, x_hat, mu, logvar, x) -> torch.Tensor:
+        return self._loss_function(x_hat, mu, logvar, x)
