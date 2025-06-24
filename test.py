@@ -1,5 +1,7 @@
 import logging
 import sys
+from pathlib import Path
+
 sys.path.insert(0, "../")
 
 from typing import Tuple
@@ -90,11 +92,13 @@ if __name__ == '__main__':
     args = get_arguments()
     set_random_seed(args.seed)
     root = root_path()
+
     log_dir, mlflow_logger = setup_ml_logging_and_mlflow(
-        experiment_name="vae_mnist",
-        run_name="vae_mnist_run",
-        disable_mlflow=False
+        experiment_name=args.mlflow_experiment,
+        run_name=args.mlflow_run_name,
+        disable_mlflow=args.disable_mlflow,
     )
+
     logger = logging.getLogger(__name__)
 
     device = torch.device(args.device)
@@ -121,5 +125,6 @@ if __name__ == '__main__':
         noise = torch.randn(num_samples, 400).to(device=device)
         images = network.decode(noise)
         for i in range(num_samples):
-            save_image(images.view(num_samples, 1, 28, 28), 'generated_sample.png')
+            img_save_path = Path(mlflow_logger.artifacts_dir, f"generated_image_{i}.png")
+            save_image(images.view(num_samples, 1, 28, 28), img_save_path)
 

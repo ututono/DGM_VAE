@@ -497,40 +497,11 @@ class MLFlowLogger(Logger):
             Otherwise returns `None`.
 
         """
-        # if self._tracking_uri.startswith(LOCAL_FILE_URI_PREFIX):
-        #     return self._tracking_uri.lstrip(LOCAL_FILE_URI_PREFIX)
-        return None
+        return self.artifacts_dir
 
     @property
     def tags(self):
         return self._tags or {}
-
-    def _log_slurm_log(self):
-        """ Log console output to MLFlow """
-        job_id = os.getenv("SLURM_JOB_ID")
-        node = os.getenv("SLURM_NODELIST")
-        slurm_output_dir = os.getenv("SLURM_OUTPUTS_DIR", "/tmp")
-
-        if job_id is not None and node is not None:
-            log_file = os.path.join(slurm_output_dir, f"rag-itg.{job_id}.{node}.out")
-            if os.path.exists(log_file):
-                try:
-                    with open(log_file, 'r', encoding='utf-8') as f:
-                        log_content = f.read()
-                    self.experiment.log_text(
-                        run_id=self.run_id,
-                        text=log_content,
-                        artifact_file=f"slurm_logs/{os.path.basename(log_file)}.txt"
-                    )
-
-                    # self.experiment.log_artifact(
-                    #     run_id=self.run_id,
-                    #     local_path=log_file,
-                    #     artifact_path="slurm_logs",
-                    # )
-
-                except Exception as e:
-                    print(f"Failed to log SLURM log file: {e}")
 
     @property
     def artifacts_dir(self) -> str:

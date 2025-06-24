@@ -35,6 +35,13 @@ class Arguments:
         self.parser.add_argument('--eval_metric', type=str, default='accuracy', help='Metric for evaluation')
         self.parser.add_argument('--eval_interval', type=int, default=1, help='Interval for evaluation during training')
 
+    def add_logging_arguments(self):
+        self.parser.add_argument('--disable_mlflow', action='store_true', help='Disable MLflow logging')
+        self.parser.add_argument('--mlflow_experiment', type=str, default='vae_mnist',
+                                 help='MLflow experiment name')
+        self.parser.add_argument('--mlflow_run_name', type=str, default='vae_mnist_run_v1',
+                                 help='MLflow run name for tracking experiments')
+
     def parse(self):
         return self.parser.parse_args()
 
@@ -59,6 +66,7 @@ def get_arguments():
     args.add_model_arguments()
     args.add_training_arguments()
     args.add_evaluation_arguments()
+    args.add_logging_arguments()
 
     args = args.parse()
     args = post_process_args(args)
