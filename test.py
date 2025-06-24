@@ -14,6 +14,12 @@ import torch.nn as nn
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
 
+from core.utils.general import set_random_seed, root_path
+from core.configs.arguments import get_arguments
+
+import rootutils
+root = rootutils.setup_root(__file__, dotenv=True, pythonpath=True, cwd=False)
+
 
 class Model(nn.Module):
     def __init__(self, img_size, latent_dim):
@@ -79,25 +85,28 @@ class VAELoss(nn.Module):
 
 
 if __name__ == '__main__':
-    torch.manual_seed(0)
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    args = get_arguments()
+    set_random_seed(args.seed)
+    root = root_path()
+
+    device = torch.device(args.device)
     print(device)
 
     transform = transforms.ToTensor()
-    dataset = datasets.MNIST(root="./datasets/training", train=True, transform=transform)
+    dataset = datasets.MNIST(root="./datasets/training", train=True, transform=transform, download=True)
 
     network = Model(img_size=(28, 28), latent_dim=400)
     loss_module = VAELoss()
 
     agent = VariationalAutoEncoder(model=network, device=device)
-    optimizer = Optimizer(optimizer="Adam",
+    optimizer = Optimizer(optimizer=args.optimizer,
                           model_parameters=agent.get_parameters(),
-                          config={'lr': 1e-3})
+                          config={'lr': args.learning_rate, "weight_decay": args.weight_decay})
     loss_function = LossFunction(loss_function=loss_module,
                                  device=device)
     core = Core(agent=agent, optimizer=optimizer, loss_function=loss_function)
 
-    training_metrics, _ = core.train(training_data=dataset, batch_size=100, epochs=50)
+    training_metrics, _ = core.train(training_data=dataset, batch_size=args.batch_size, epochs=args.epochs)
 
     with torch.no_grad():
         num_samples = 16
