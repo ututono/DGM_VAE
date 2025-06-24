@@ -1,3 +1,4 @@
+import logging
 import sys
 sys.path.insert(0, "../")
 
@@ -16,6 +17,7 @@ from torchvision.utils import save_image
 
 from core.utils.general import set_random_seed, root_path
 from core.configs.arguments import get_arguments
+from core.configs.logging_config import setup_ml_logging_and_mlflow
 
 import rootutils
 root = rootutils.setup_root(__file__, dotenv=True, pythonpath=True, cwd=False)
@@ -88,9 +90,15 @@ if __name__ == '__main__':
     args = get_arguments()
     set_random_seed(args.seed)
     root = root_path()
+    log_dir, mlflow_logger = setup_ml_logging_and_mlflow(
+        experiment_name="vae_mnist",
+        run_name="vae_mnist_run",
+        disable_mlflow=False
+    )
+    logger = logging.getLogger(__name__)
 
     device = torch.device(args.device)
-    print(device)
+    logger.debug(device)
 
     transform = transforms.ToTensor()
     dataset = datasets.MNIST(root="./datasets/training", train=True, transform=transform, download=True)
