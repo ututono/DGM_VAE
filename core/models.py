@@ -27,7 +27,11 @@ class MedMNISTVAE(nn.Module):
         )
 
         # Calculate flattened size after convolutions
-        self.flattened_size = 128 * 4 * 4  # For 28x28 input
+        with torch.no_grad():
+            dummy = torch.zeros(1, c, h, w)
+            out = self.encoder(dummy)
+            self.flattened_size = out.view(1, -1).size(1)
+            self._final_feature_shape = out.shape[1:] # (128, 4, 4) for example
 
         # Latent space
         self.fc_mu = nn.Linear(self.flattened_size, latent_dim)
@@ -64,7 +68,7 @@ class MedMNISTVAE(nn.Module):
     def decode(self, z):
         """Decode latent variables to reconstruction"""
         h = self.fc_decode(z)
-        h = h.view(-1, 128, 4, 4)
+        h = h.view(-1, *self._final_feature_shape)
         return self.decoder(h)
 
     def forward(self, x):
