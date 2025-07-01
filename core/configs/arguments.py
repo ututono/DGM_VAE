@@ -16,7 +16,9 @@ class Arguments:
                                  help='Logging level (e.g., debug, info, warning, error)')
 
     def add_data_arguments(self):
-        self.parser.add_argument('--input', type=str, help='Input file path')
+        self.parser.add_argument('--dataset_name', type=str, default='pathmnist', help='Input file path')
+        self.parser.add_argument('--image_size', type=int, default=28, help='The size of the crop to take from the original images')
+        self.parser.add_argument('--as_rgb', action='store_true', help='Load images as RGB instead of grayscale')
         self.parser.add_argument('--output', type=str, help='Output file path')
         self.parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
 
@@ -24,6 +26,7 @@ class Arguments:
         self.parser.add_argument('--model', type=str, default='vanilla_vae', help='Model name')
         self.parser.add_argument('--epochs', type=int, default=10, help='Number of training epochs')
         self.parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training')
+        self.parser.add_argument('--latent_dim', type=int, default=128, help='Dimensionality of the latent space')
 
     def add_training_arguments(self):
         self.parser.add_argument('--learning_rate', type=float, default=0.001, help='Learning rate for training')
