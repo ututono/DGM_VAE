@@ -21,14 +21,14 @@ class Arguments:
         self.parser.add_argument('--as_rgb', action='store_true', help='Load images as RGB instead of grayscale')
         self.parser.add_argument('--output', type=str, help='Output file path')
         self.parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
+        self.parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training')
 
     def add_model_arguments(self):
         self.parser.add_argument('--model', type=str, default='vanilla_vae', help='Model name')
-        self.parser.add_argument('--epochs', type=int, default=10, help='Number of training epochs')
-        self.parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training')
         self.parser.add_argument('--latent_dim', type=int, default=128, help='Dimensionality of the latent space')
 
     def add_training_arguments(self):
+        self.parser.add_argument('--epochs', type=int, default=10, help='Number of training epochs')
         self.parser.add_argument('--learning_rate', type=float, default=0.001, help='Learning rate for training')
         self.parser.add_argument('--weight_decay', type=float, default=1e-4, help='Weight decay for optimizer')
         self.parser.add_argument('--num_workers', type=int, default=4, help='Number of workers for data loading')

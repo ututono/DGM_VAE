@@ -59,7 +59,7 @@ def setup_logging(timestamp=None, base_log_dir=None):
         console_level = 'WARNING'
     else:
         log_level = 'DEBUG'
-        console_level = 'DEBUG'
+        console_level = 'INFO'
 
     # Define log file paths
     app_log_file = Path(log_dir, "application.log")
