@@ -190,7 +190,7 @@ def setup_ml_logging_and_mlflow(experiment_name, run_name=None, tracking_uri=Non
                 "log_dir": log_dir
             }
         )
-
+        print(f"MLFlow directory: {mlflow_logger.save_dir}")
         # Log the logging directory to MLflow
         mlflow_logger.log_hyperparams({"logging_dir": log_dir})
 

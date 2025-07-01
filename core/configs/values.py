@@ -35,3 +35,13 @@ class TrainingState(TypeEnum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"  # completed state indicates successful completion of the training process
     FAILED = "failed"
+
+
+class DataSplitType(TypeEnum):
+    """
+    Enum for data split types.
+    """
+    TRAIN = "train"
+    TEST = "test"
+    VALIDATION = "val"
+
