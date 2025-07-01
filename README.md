@@ -1,4 +1,7 @@
 # DGM_VAE
+
+This repository contains code for training and evaluating various types of Variational Autoencoders (VAEs) on the MedMNIST dataset.
+
 ## Setup
 ### Environment setup
 Create a conda environment and install packages necessary for this project with the following command:
@@ -40,3 +43,19 @@ mlflow ui --port 15000
 ```
 
 Then open your browser and go to `http://localhost:15000`.
+
+If you don't want to use MLflow, you can disable it by passing the `--disable_mlflow` flag when running the training script. The artifacts and metrics will be saved in the `outputs` directory instead.
+
+## Usage Example
+To run the training script for vanilla VAE on MedMNIST dataset, use the following command:
+
+```bash
+python training.py \
+    --dataset_name "ChestMNIST" \
+    --model_name "vanilla_vae" \
+    --batch_size 64 \
+    --epochs 10 \
+    --learning_rate 0.001 \
+    --image_size 28 \
+    
+```
