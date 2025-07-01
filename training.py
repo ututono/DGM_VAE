@@ -3,7 +3,7 @@ import sys
 from os import PathLike
 from pathlib import Path
 
-from core.configs.arguments import get_arguments
+from core.configs.arguments import get_arguments, print_and_save_arguments
 from core.configs.logging_config import setup_ml_logging_and_mlflow
 from core.utils.general import set_random_seed, root_path
 
@@ -48,6 +48,15 @@ def run_vae_experiment():
 
     device = torch.device(args.device)
 
+    timestamp = Path(log_dir).parts[-1]
+    if mlflow_logger:
+        mlflow_logger.log_hyperparams(args)
+        artifacts_dir = mlflow_logger.artifacts_dir
+    else:
+        artifacts_dir = Path(root, "outputs", timestamp, 'artifacts')
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        print_and_save_arguments(args, save_dir=artifacts_dir)
+
     # Load MedMNIST data
     train_ds, val_ds, test_ds, dataset_info = load_medmnist_data(
         dataset_name=args.dataset_name,
@@ -81,13 +90,8 @@ def run_vae_experiment():
     )
     logger.info("Training completed")
 
-    if mlflow_logger:
-        mlflow_logger.log_hyperparams(args)
-        artifacts_dir = mlflow_logger.artifacts_dir
-    else:
-        timestamp = Path(log_dir).parts[-1]
-        artifacts_dir = Path(root, "outputs", timestamp, 'artifacts')
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+
 
     # Save training metrics
     save_metrics(metrics=training_metrics, save_path=artifacts_dir, file_name="train")

@@ -1,12 +1,14 @@
 import argparse
+import logging
+from pathlib import Path
 
 import torch
 
+logger = logging.getLogger(__name__)
 
 class Arguments:
     def __init__(self):
         self.parser = argparse.ArgumentParser(description="Process some integers.")
-        self.add_common_arguments()
 
     def add_common_arguments(self):
         self.parser.add_argument('--device', type=str, default='cuda',
@@ -45,8 +47,43 @@ class Arguments:
         self.parser.add_argument('--mlflow_run_name', type=str, default='vae_mnist_run_v1',
                                  help='MLflow run name for tracking experiments')
 
+    def add_all_arguments(self):
+        """
+        Add all arguments to the parser.
+        """
+        self.add_common_arguments()
+        self.add_data_arguments()
+        self.add_model_arguments()
+        self.add_training_arguments()
+        self.add_evaluation_arguments()
+        self.add_logging_arguments()
+
     def parse(self):
         return self.parser.parse_args()
+
+
+def print_and_save_arguments(args, save_dir="outputs"):
+    """
+    Print the command line arguments.
+    """
+    message = "\n"
+    # get the default value from the parser
+    tmp_args = Arguments()
+    tmp_args.add_all_arguments()
+
+    for k, v in sorted(vars(args).items()):
+        default_value = tmp_args.parser.get_default(k)
+        comment = f"\t(default: {default_value})" if v != default_value else ""
+        message += f"{k:>30}: {str(v):<40}{comment}\n"
+
+    if save_dir:
+        save_path = Path(save_dir) / "args.json"
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(save_path, 'w') as f:
+            import json
+            json.dump(vars(args), f, indent=4)
+
+    logger.info(message)
 
 
 def post_process_args(args):
@@ -59,17 +96,20 @@ def post_process_args(args):
 
     return args
 
+def get_default_arg_values():
+    """
+    Get default argument values.
+    """
+    args = Arguments()
+    default_args = args.parser.parse_args([])
+    return vars(default_args)
 
 def get_arguments():
     """
     Get command line arguments.
     """
     args = Arguments()
-    args.add_data_arguments()
-    args.add_model_arguments()
-    args.add_training_arguments()
-    args.add_evaluation_arguments()
-    args.add_logging_arguments()
+    args.add_all_arguments()
 
     args = args.parse()
     args = post_process_args(args)
