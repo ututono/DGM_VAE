@@ -95,3 +95,12 @@ class VariationalAutoEncoder(AbstractAgent):
                 raise NotImplementedError("Model must have a 'decode' method for generation")
 
             return generated_samples
+
+    def load_parameters(self, path):
+        """Load model parameters from a given path."""
+        self._model.load_state_dict(torch.load(path, map_location=self._device))
+        self._model.to(self._device)
+
+    def save_parameters(self, path):
+        """Save model parameters to a given path."""
+        torch.save(self._model.state_dict(), path)

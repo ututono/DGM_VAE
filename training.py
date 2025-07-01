@@ -14,7 +14,7 @@ from core.loss_function import LossFunction
 from core.optimizer import Optimizer
 from core.data.dataset import load_medmnist_data
 from core.vae_agent import VariationalAutoEncoder
-from core.utils.saving import save_metrics
+from core.utils.saving import save_metrics, save_model
 from core.visualization.plotting import plot_data
 from core.models import MedMNISTVAE
 from core.loss_function import VAELoss
@@ -33,7 +33,27 @@ def generate_samples(agent, num_samples=16, save_path: PathLike = "generated_sam
         save_image(samples_images, save_path, nrow=4, normalize=True)
 
 
-def run_vae_experiment():
+def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu"):
+    network = MedMNISTVAE(img_shape=img_shape, latent_dim=latent_dim)
+    agent = VariationalAutoEncoder(model=network, device=torch.device("cpu"))
+
+    if checkpoint_path:
+        checkpoint_path = Path(checkpoint_path)
+        if checkpoint_path.exists():
+            agent.load_parameters(checkpoint_path)
+            print(f"Model parameters loaded from {checkpoint_path}")
+        else:
+            print(f"Checkpoint path {checkpoint_path} does not exist. Starting with a new model.")
+
+    agent = VariationalAutoEncoder(model=network, device=device)
+
+    return agent
+
+
+def setup_experiments():
+    """
+    Set up the experiment environment, including logging and MLflow.
+    """
     args = get_arguments()
     set_random_seed(args.seed)
     root = root_path()
@@ -45,10 +65,19 @@ def run_vae_experiment():
     )
 
     logger = logging.getLogger(__name__)
+    logger.info(f"Experiment setup complete with log directory: {log_dir}")
+
+    return args, log_dir, mlflow_logger, logger, root
+
+
+def run_vae_experiment():
+    args, log_dir, mlflow_logger, logger, root = setup_experiments()
 
     device = torch.device(args.device)
 
     timestamp = Path(log_dir).parts[-1]
+
+    # Log parameters
     if mlflow_logger:
         mlflow_logger.log_hyperparams(args)
         artifacts_dir = mlflow_logger.artifacts_dir
@@ -69,11 +98,11 @@ def run_vae_experiment():
     # Initialize model
     img_shape = (dataset_info['n_channels'], args.image_size, args.image_size)
     latent_dim = args.latent_dim
-    network = MedMNISTVAE(img_shape=img_shape, latent_dim=latent_dim)
     loss_module = VAELoss()
     logger.info(f"Model initialized with image shape {img_shape} and latent dimension {latent_dim}")
 
-    agent = VariationalAutoEncoder(model=network, device=device)
+    agent = init_and_load_model(img_shape=img_shape, latent_dim=latent_dim, checkpoint_path=args.checkpoint_path,
+                                device=device)
 
     optimizer = Optimizer(optimizer=args.optimizer,
                           model_parameters=agent.get_parameters(),
@@ -90,8 +119,9 @@ def run_vae_experiment():
     )
     logger.info("Training completed")
 
-
-
+    # Save model parameters
+    if args.save_model:
+        save_model(agent=agent, root=root, timestamp=timestamp, mlflow_logger=mlflow_logger)
 
     # Save training metrics
     save_metrics(metrics=training_metrics, save_path=artifacts_dir, file_name="train")

@@ -57,5 +57,6 @@ python training.py \
     --epochs 10 \
     --learning_rate 0.001 \
     --image_size 28 \
+    --save_model \
     
 ```

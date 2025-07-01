@@ -27,6 +27,8 @@ class Arguments:
 
     def add_model_arguments(self):
         self.parser.add_argument('--model', type=str, default='vanilla_vae', help='Model name')
+        self.parser.add_argument('--checkpoint_path', type=str, default=None, help='Path to the model checkpoint for loading')
+        self.parser.add_argument('--save_model', action='store_true', help='Save the model after training')
         self.parser.add_argument('--latent_dim', type=int, default=128, help='Dimensionality of the latent space')
 
     def add_training_arguments(self):
