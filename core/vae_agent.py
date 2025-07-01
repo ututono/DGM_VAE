@@ -48,28 +48,57 @@ class VariationalAutoEncoder(AbstractAgent):
             
 
     def _perform_evaluation_epoch(self, epoch, eval_dataloader: DataLoader, loss_fn: LossFunction):
-        
+
         epoch_losses_val = list()
         total_samples = 0
-        
+
         with torch.no_grad():
-            for x in eval_dataloader:
+            for x, _ in eval_dataloader:  # x: (images, labels)
                 x_val: torch.Tensor = x.to(self._device)
                 xhat_val, mu, logvar = self._model(x_val)
 
                 loss: torch.Tensor = loss_fn(xhat_val, mu, logvar, x_val)
                 epoch_losses_val.append(loss.item())
                 total_samples += x_val.size(0)
-                epoch_loss_validation: float = sum(epoch_losses_val) / total_samples
+
+        epoch_loss_validation: float = sum(epoch_losses_val) / total_samples
+        self._metrics['validation'].update(epoch=epoch, batch_loss=epoch_loss_validation)
 
             # self._metrics['validation'].update(epoch=epoch, batch_loss=epoch_loss_validation)
 
 
     def test(self, test_data):
-        return
+        """Test the model on test data"""
+        self._model.eval()
+        test_losses = []
+        total_samples = 0
+
+        with torch.no_grad():
+            for batch_idx, (x, _) in enumerate(test_data):
+                x_test = x.to(self._device)
+
+                x_hat_test, mu, logvar = self._model(x_test)
+
+                loss = torch.nn.functional.binary_cross_entropy(x_hat_test, x_test, reduction='sum')
+                test_losses.append(loss.item())
+                total_samples += x_test.size(0)
+
+        average_test_loss = sum(test_losses) / total_samples
+        return {'test_loss(recon_loss)': average_test_loss}
 
 
     def predict(self, num_samples: int = 1) -> torch.Tensor:
+        self._model.eval()
+        latent_dim = self._model.latent_dim if hasattr(self._model, 'latent_dim') else 128
         with torch.no_grad():
-            noise = torch.randn(num_samples)
+            # Sample from standard normal distribution
+            z = torch.randn(num_samples, latent_dim).to(self._device)
+
+            # Generate samples using the decoder
+            if hasattr(self._model, 'decode'):
+                generated_samples = self._model.decode(z)
+            else:
+                raise NotImplementedError("Model must have a 'decode' method for generation")
+
+            return generated_samples
             
