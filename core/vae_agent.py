@@ -21,12 +21,10 @@ class VariationalAutoEncoder(AbstractAgent):
         }
         super().__init__(model=model, device=device, metrics=metrics)
 
-
-
     def _perform_training_epoch(self, epoch, train_dataloader: DataLoader,
                                 optimizer: Optimizer,
                                 loss_fn: LossFunction):
-        
+
         epoch_losses = list()
         total_samples = 0
 
@@ -41,11 +39,9 @@ class VariationalAutoEncoder(AbstractAgent):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-        
+
         epoch_loss: float = sum(epoch_losses) / total_samples
         self._metrics['train'].update(epoch=epoch, batch_loss=epoch_loss)
-
-            
 
     def _perform_evaluation_epoch(self, epoch, eval_dataloader: DataLoader, loss_fn: LossFunction):
 
@@ -64,8 +60,7 @@ class VariationalAutoEncoder(AbstractAgent):
         epoch_loss_validation: float = sum(epoch_losses_val) / total_samples
         self._metrics['validation'].update(epoch=epoch, batch_loss=epoch_loss_validation)
 
-            # self._metrics['validation'].update(epoch=epoch, batch_loss=epoch_loss_validation)
-
+        # self._metrics['validation'].update(epoch=epoch, batch_loss=epoch_loss_validation)
 
     def test(self, test_data):
         """Test the model on test data"""
@@ -86,7 +81,6 @@ class VariationalAutoEncoder(AbstractAgent):
         average_test_loss = sum(test_losses) / total_samples
         return {'test_loss(recon_loss)': average_test_loss}
 
-
     def predict(self, num_samples: int = 1) -> torch.Tensor:
         self._model.eval()
         latent_dim = self._model.latent_dim if hasattr(self._model, 'latent_dim') else 128
@@ -101,4 +95,3 @@ class VariationalAutoEncoder(AbstractAgent):
                 raise NotImplementedError("Model must have a 'decode' method for generation")
 
             return generated_samples
-            
