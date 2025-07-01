@@ -27,3 +27,18 @@ class LossFunction(nn.Module):
 
     def forward(self, x_hat, mu, logvar, x) -> torch.Tensor:
         return self._loss_function(x_hat, mu, logvar, x)
+
+
+class VAELoss(nn.Module):
+    def __init__(self, beta=1.0):
+        """
+        Variational Autoencoder Loss Function.
+        :param beta: Weighting factor for the KL divergence term.
+        """
+        super().__init__()
+        self.beta = beta
+
+    def forward(self, x_hat, mu, logvar, x):
+        bce = F.binary_cross_entropy(x_hat, x, reduction='sum')
+        kld = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+        return bce + self.beta * kld
