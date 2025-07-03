@@ -1,4 +1,5 @@
 import errno
+import logging
 import os
 import random
 from pathlib import Path
@@ -7,6 +8,7 @@ from typing import Optional
 import torch
 import numpy as np
 
+logger = logging.getLogger(__name__)
 
 def set_random_seed(seed: int = 42):
     """Set the seed for determinism"""
@@ -76,3 +78,41 @@ def symlink_force(target, link_name):
             os.symlink(target, link_name)
         else:
             raise e
+
+
+def apply_smoke_test_settings(args, train_ds, val_ds, test_ds):
+    """
+    Apply smoke test settings to reduce resource usage for CI/CD.
+    """
+    if args.smoke_test:
+        logger.info("Smoke test mode enabled - reducing dataset size and training parameters")
+
+        # Limit dataset sizes
+        train_subset_size = min(10, len(train_ds))
+        val_subset_size = min(2, len(val_ds))
+        test_subset_size = min(1, len(test_ds))
+
+        # Create subsets
+        train_indices = torch.randperm(len(train_ds))[:train_subset_size]
+        val_indices = torch.randperm(len(val_ds))[:val_subset_size]
+        test_indices = torch.randperm(len(test_ds))[:test_subset_size]
+
+        train_ds = torch.utils.data.Subset(train_ds, train_indices)
+        val_ds = torch.utils.data.Subset(val_ds, val_indices)
+        test_ds = torch.utils.data.Subset(test_ds, test_indices)
+
+        # Override training parameters for speed
+        args.epochs = 1
+        args.batch_size = 2
+        args.latent_dim = min(args.latent_dim, 32)  # Reduce latent dimension
+        args.learning_rate = 0.01  # Slightly higher for faster convergence
+
+        logger.info(f"Smoke test settings applied:\n"
+                    f"  - Train samples: {len(train_ds)}\n"
+                    f"  - Val samples: {len(val_ds)}\n"
+                    f"  - Test samples: {len(test_ds)}\n"
+                    f"  - Epochs: {args.epochs}\n"
+                    f"  - Batch size: {args.batch_size}\n"
+                    f"  - Latent dim: {args.latent_dim}")
+
+    return train_ds, val_ds, test_ds

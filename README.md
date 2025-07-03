@@ -58,5 +58,37 @@ python training.py \
     --learning_rate 0.001 \
     --image_size 28 \
     --save_model \
-    
+
 ```
+
+## CI/CD Pipeline
+
+This project includes a GitHub Actions CI/CD pipeline that automatically tests the training and evaluation scripts when changes are pushed to the repository. The pipeline performs the following steps:
+
+1. Sets up a Python 3.10 environment
+2. Installs all required dependencies
+3. Runs a basic training test with minimal epochs (2) to verify functionality
+4. Runs the evaluation script on the trained model
+5. Uploads training artifacts for inspection
+6. Cleans up the environment after the tests are complete
+
+The CI/CD pipeline is triggered on:
+- Push to the dev branch
+- Pull request to the dev branch
+- [ ]  (TODO)dev as so far, should be changed to main in the future)
+
+To view the status of the CI/CD pipeline, check the "Actions" tab in the GitHub repository.
+
+### Running Tests Locally
+
+To run the same tests locally that are run in the CI/CD pipeline, use the following commands:
+
+```bash
+# Run training test
+python training.py --epochs 1 --batch-size 16 --dataset-name pathmnist --image-size 24 --latent-dim 8 --disable-mlflow --save-model
+
+# Run evaluation test
+python test.py --checkpoint-path outputs/latest/model/model.pt --dataset-name pathmnist --image-size 24 --latent-dim 8
+```
+
+Note: The CI/CD pipeline uses minimal resources (reduced epochs, batch size, image size, and latent dimension) to ensure efficient execution in the GitHub Actions environment.

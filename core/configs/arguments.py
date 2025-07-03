@@ -50,6 +50,11 @@ class Arguments:
         self.parser.add_argument('--mlflow_run_name', type=str, default='vae_mnist_run_v1',
                                  help='MLflow run name for tracking experiments')
 
+    def add_extra_arguments(self):
+        self.parser.add_argument('--smoke_test', action='store_true',
+                                 help='Run a smoke test with minimal data (10 images for train, 2 for val and 1 for test), epochs (1) and batch size (2)')
+
+
     def add_all_arguments(self):
         """
         Add all arguments to the parser.
@@ -60,6 +65,7 @@ class Arguments:
         self.add_training_arguments()
         self.add_evaluation_arguments()
         self.add_logging_arguments()
+        self.add_extra_arguments()
 
     def parse(self):
         return self.parser.parse_args()

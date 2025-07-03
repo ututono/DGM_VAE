@@ -6,7 +6,7 @@ from typing import List
 
 from core.configs.arguments import get_arguments, print_and_save_arguments
 from core.configs.logging_config import setup_ml_logging_and_mlflow
-from core.utils.general import set_random_seed, root_path, symlink_force
+from core.utils.general import set_random_seed, root_path, symlink_force, apply_smoke_test_settings
 
 sys.path.insert(0, '../')
 
@@ -133,6 +133,10 @@ def run_vae_experiment():
         image_size=args.image_size,
         custom_transform=None,
         as_rgb=args.as_rgb,
+    )
+
+    train_ds, val_ds, test_ds = apply_smoke_test_settings(
+        train_ds=train_ds, val_ds=val_ds, test_ds=test_ds, args=args
     )
 
     # Initialize model
