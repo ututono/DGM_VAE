@@ -2,7 +2,7 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ dev ]
+    branches: [ main, dev ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:  # Allow manual triggering
@@ -40,6 +40,17 @@ jobs:
     - name: Run evaluation test
       run: |
         python test.py --checkpoint_path outputs/latest/model --dataset_name pathmnist --image_size 28 --smoke_test
+
+    - name: Verify training outputs
+      run: |
+        # Check if training completed and created expected outputs
+        if [ -d "outputs" ]; then
+          echo "✓ Outputs directory created"
+          find outputs -name "*.json" -o -name "*.png" -o -name "*.pth.tar" | head -10
+        else
+          echo "✗ No outputs directory found"
+          exit 1
+        fi
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
