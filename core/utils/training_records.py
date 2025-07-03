@@ -166,7 +166,7 @@ class ConfigCompatibilityChecker:
         if compatibility_result['warnings']:
             message += "\n" + "WARNINGS:"
             for warning in compatibility_result['warnings']:
-                message += f"\n  <UNK> {warning['parameter']}: {warning['message']}"
+                message += f"\n  • {warning['parameter']}: {warning['message']}"
                 message += f"\n    Current: {warning['current']}"
                 message += f"\n    Saved:   {warning['saved']}"
 
@@ -248,9 +248,6 @@ def load_checkpoint(model, current_args, load_dir, force_continue:bool=False, ck
         compatibility = ConfigCompatibilityChecker.check_compatibility(
             current_record, latest_record
         )
-
-        # Print report
-        ConfigCompatibilityChecker.print_compatibility_report(compatibility)
 
         # Print report
         ConfigCompatibilityChecker.print_compatibility_report(compatibility)
