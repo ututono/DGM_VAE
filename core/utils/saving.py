@@ -42,21 +42,19 @@ def save_results(result, save_path, filename):
     np.save(os.path.join(save_path, filename + ".npy"), np.array(result))
 
 
-def save_model(agent, root, timestamp, mlflow_logger=None):
+def save_model(agent, root, timestamp, mlflow_logger=None, args=None):
     if mlflow_logger:
         mlflow_logger.log_model(agent, model_name="vae_model")
         logger.info(f"Model was logged to MLflow under run ID: {mlflow_logger.run_id}")
     else:
         model_dir = Path(root, "outputs", timestamp, 'model')
         model_dir.mkdir(parents=True, exist_ok=True)
-        model_save_path = Path(model_dir, "vae_model.pth")
-        agent.save_parameters(model_save_path)
-        logger.info(f"Model parameters saved to {model_save_path}")
+        agent.save_checkpoint(path=model_dir, args=args)
 
         # symlink the latest model
         latest_model_link = Path(root, "outputs", 'latest', 'model')
         latest_model_link.parent.mkdir(parents=True, exist_ok=True)
-        if latest_model_link.exists() and latest_model_link.is_symlink():
+        if latest_model_link.exists() or latest_model_link.is_symlink():
             latest_model_link.unlink()
         latest_model_link.symlink_to(model_dir, target_is_directory=True)
 

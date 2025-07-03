@@ -27,8 +27,8 @@ class Core():
                                  epochs=epochs, quiet=quiet)
 
 
-    def test(self, data):
-        test_dataloader = DataLoader(data, batch_size=1)
+    def test(self, data, batch_size=1):
+        test_dataloader = DataLoader(data, batch_size=batch_size)
         return self._agent.test(test_dataloader)
 
 

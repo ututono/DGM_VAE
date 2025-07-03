@@ -2,10 +2,11 @@ import logging
 import sys
 from os import PathLike
 from pathlib import Path
+from typing import List
 
 from core.configs.arguments import get_arguments, print_and_save_arguments
 from core.configs.logging_config import setup_ml_logging_and_mlflow
-from core.utils.general import set_random_seed, root_path
+from core.utils.general import set_random_seed, root_path, symlink_force
 
 sys.path.insert(0, '../')
 
@@ -26,26 +27,65 @@ from torchvision.utils import save_image
 from sklearn.datasets import make_circles
 import pandas as pd
 
+logger = logging.getLogger(__name__)
 
 def generate_samples(agent, num_samples=16, save_path: PathLike = "generated_samples.png"):
     samples_images = agent.predict(num_samples=num_samples)
     if save_path:
         save_image(samples_images, save_path, nrow=4, normalize=True)
 
+def generate_random_samples_and_reconstruct_images(agent, core:Core, test_ds, artifacts_dir):
+    # Generate and save samples
+    samples_save_path = Path(artifacts_dir, "generated_samples.png")
+    generate_samples(agent, num_samples=16, save_path=samples_save_path)
+    logger.info(f"Generated samples saved to {samples_save_path}")
 
-def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu"):
+    # Reconstruct images from test set
+    # Only reconstruct images from the first batch of the test dataset
+    test_results = core.test(data=test_ds, batch_size=8)
+
+    logger.info(f"Test results: {test_results['test_loss(recon_loss)']}")
+    if 'comparison' in test_results:
+        comparison_save_path = Path(artifacts_dir, "reconstructed_comparison.png")
+        save_image(test_results['comparison'], comparison_save_path, nrow=8, normalize=True)
+        logger.info(f"Reconstructed images saved to {comparison_save_path}")
+
+
+def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu", args=None):
     network = MedMNISTVAE(img_shape=img_shape, latent_dim=latent_dim)
-    agent = VariationalAutoEncoder(model=network, device=torch.device("cpu"))
+    agent = VariationalAutoEncoder(model=network, device=device)
 
     if checkpoint_path:
         checkpoint_path = Path(checkpoint_path)
         if checkpoint_path.exists():
-            agent.load_parameters(checkpoint_path)
+            logger.info(f"Loading checkpoint from {args.checkpoint_path}")
+            try:
+                records_manager = agent.load_checkpoint(
+                    checkpoint_path=args.checkpoint_path,
+                    current_args=args,
+                    force_continue=getattr(args, 'force_continue', False)
+                )
+
+                # Get info about previous training
+                if records_manager.records:
+                    latest_record = records_manager.get_latest_record()
+                    logger.info(f"Loaded model from training session {latest_record.train_count}")
+                    logger.info(f"Previous training timestamp: {latest_record.timestamp}")
+
+                    if latest_record.metrics:
+                        last_metrics = latest_record.metrics[-1]
+                        logger.info(f"Previous best val loss: {last_metrics.get('best_val_loss', 'N/A')}")
+
+            except ValueError as e:
+                logger.error(f"Failed to load checkpoint: {e}")
+                return
+            except Exception as e:
+                logger.error(f"Error loading checkpoint: {e}")
+                return
+
             print(f"Model parameters loaded from {checkpoint_path}")
         else:
             print(f"Checkpoint path {checkpoint_path} does not exist. Starting with a new model.")
-
-    agent = VariationalAutoEncoder(model=network, device=device)
 
     return agent
 
@@ -64,7 +104,7 @@ def setup_experiments():
         disable_mlflow=args.disable_mlflow,
     )
 
-    logger = logging.getLogger(__name__)
+
     logger.info(f"Experiment setup complete with log directory: {log_dir}")
 
     return args, log_dir, mlflow_logger, logger, root
@@ -102,7 +142,7 @@ def run_vae_experiment():
     logger.info(f"Model initialized with image shape {img_shape} and latent dimension {latent_dim}")
 
     agent = init_and_load_model(img_shape=img_shape, latent_dim=latent_dim, checkpoint_path=args.checkpoint_path,
-                                device=device)
+                                device=device, args=args)
 
     optimizer = Optimizer(optimizer=args.optimizer,
                           model_parameters=agent.get_parameters(),
@@ -121,7 +161,7 @@ def run_vae_experiment():
 
     # Save model parameters
     if args.save_model:
-        save_model(agent=agent, root=root, timestamp=timestamp, mlflow_logger=mlflow_logger)
+        save_model(agent=agent, root=root, timestamp=timestamp, mlflow_logger=mlflow_logger, args=args)
 
     # Save training metrics
     save_metrics(metrics=training_metrics, save_path=artifacts_dir, file_name="train")
@@ -134,11 +174,11 @@ def run_vae_experiment():
     plot_data(pd.DataFrame(list(zip(val_metrics["epoch"], val_metrics['loss'])),
                            columns=["Epoch", "Loss"]), save_path=artifacts_dir, file_name="losses_validation",
               y_name="Loss")
+    # Symlink the latest artifacts
+    latest_artifacts_link = Path(root, "outputs", 'latest', 'artifacts')
+    symlink_force(artifacts_dir, latest_artifacts_link)
 
-    # Generate and save samples
-    samples_save_path = Path(artifacts_dir, "generated_samples.png")
-    generate_samples(agent, num_samples=16, save_path=samples_save_path)
-    logger.info(f"Generated samples saved to {samples_save_path}")
+    generate_random_samples_and_reconstruct_images(agent=agent, core=core, test_ds=test_ds, artifacts_dir=artifacts_dir)
 
 
 if __name__ == '__main__':
