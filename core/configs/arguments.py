@@ -21,7 +21,7 @@ class Arguments:
         self.parser.add_argument('--dataset_name', type=str, default='pathmnist', help='Input file path')
         self.parser.add_argument('--image_size', type=int, default=28, help='The size of the crop to take from the original images')
         self.parser.add_argument('--as_rgb', action='store_true', help='Load images as RGB instead of grayscale')
-        self.parser.add_argument('--output', type=str, help='Output file path')
+        self.parser.add_argument('--output', type=str, help='Output file path (directory) for saving results')
         self.parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
         self.parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training')
 
@@ -37,6 +37,7 @@ class Arguments:
         self.parser.add_argument('--weight_decay', type=float, default=1e-4, help='Weight decay for optimizer')
         self.parser.add_argument('--num_workers', type=int, default=4, help='Number of workers for data loading')
         self.parser.add_argument('--optimizer', type=str, default='Adam', help='Optimizer to use (e.g., adam, sgd)')
+        self.parser.add_argument('--force_continue', action='store_true', help='Force continue training even with compatibility warnings')
 
     def add_evaluation_arguments(self):
         self.parser.add_argument('--eval_metric', type=str, default='accuracy', help='Metric for evaluation')
