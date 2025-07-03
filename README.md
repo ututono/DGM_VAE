@@ -85,10 +85,10 @@ To run the same tests locally that are run in the CI/CD pipeline, use the follow
 
 ```bash
 # Run training test
-python training.py --epochs 1 --batch-size 16 --dataset-name pathmnist --image-size 24 --latent-dim 8 --disable-mlflow --save-model
+python training.py --dataset_name pathmnist --image_size 28 --disable_mlflow --save_model --smoke_test
 
 # Run evaluation test
-python test.py --checkpoint-path outputs/latest/model/model.pt --dataset-name pathmnist --image-size 24 --latent-dim 8
+python test.py --checkpoint_path outputs/latest/model --dataset_name pathmnist --image_size 28 --smoke_test
 ```
 
 Note: The CI/CD pipeline uses minimal resources (reduced epochs, batch size, image size, and latent dimension) to ensure efficient execution in the GitHub Actions environment.
