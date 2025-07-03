@@ -42,13 +42,14 @@ jobs:
         python test.py --checkpoint_path outputs/latest/model --dataset_name pathmnist --image_size 28 --smoke_test
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: training-outputs
         path: |
           outputs/latest/artifacts/generated_samples.png
           outputs/latest/artifacts/losses_train.png
         if-no-files-found: warn
+        retention-days: 7
 
     - name: Clean up
       run: |
