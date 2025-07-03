@@ -57,8 +57,8 @@ jobs:
       with:
         name: training-outputs
         path: |
-          outputs/latest/artifacts/generated_samples.png
-          outputs/latest/artifacts/losses_train.png
+          outputs/latest
+          logs/latest
         if-no-files-found: warn
         retention-days: 7
 
