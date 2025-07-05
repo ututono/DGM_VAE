@@ -45,3 +45,9 @@ class DataSplitType(TypeEnum):
     TEST = "test"
     VALIDATION = "val"
 
+class VAEModelType(TypeEnum):
+    """
+    Enum for VAE model types.
+    """
+    VAE = "vae"
+    CVAE = "cvae"
