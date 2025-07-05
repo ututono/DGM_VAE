@@ -4,6 +4,8 @@ from core.agent import AbstractAgent
 import torch
 
 from torch.utils.data import DataLoader
+
+from core.configs.values import VAEModelType
 from core.optimizer import Optimizer
 from core.loss_function import LossFunction
 from core.utils.metrics import Metrics
@@ -12,7 +14,7 @@ from typing import List, Dict, Any
 
 class VariationalAutoEncoder(AbstractAgent):
     def __init__(self, model, device):
-        train_metrics = Metrics(["loss"])
+        train_metrics = Metrics(["loss"])  # TODO add more metrics like KL divergence, reconstruction loss
         val_metrics = Metrics(["loss"])
         test_metrics = Metrics(["loss"])
 
@@ -31,10 +33,22 @@ class VariationalAutoEncoder(AbstractAgent):
         epoch_losses = list()
         total_samples = 0
 
-        for x, _ in train_dataloader:
-            x: torch.Tensor = x.to(self._device)
 
-            x_hat, mu, logvar = self._model(x)
+        for batch_data in train_dataloader:
+            if self.is_conditional_training:
+                # For Conditional VAE, we need to concatenate the labels with the images
+                x, y = batch_data  # x: (images), y: (labels)
+                x: torch.Tensor = x.to(self._device)
+                y: torch.Tensor = y.to(self._device).squeeze(dim=1)
+
+                # forward pass with labels
+                x_hat, mu, logvar = self._model(x, y)
+            else:
+                # For Vanilla VAE, we only need the images
+                x, _ = batch_data
+                x: torch.Tensor = x.to(self._device)
+                x_hat, mu, logvar = self._model(x)
+
             loss: torch.Tensor = loss_fn(x_hat, mu, logvar, x)
             epoch_losses.append(loss.item())
             total_samples += x.size(0)
@@ -52,13 +66,22 @@ class VariationalAutoEncoder(AbstractAgent):
         total_samples = 0
 
         with torch.no_grad():
-            for x, _ in eval_dataloader:  # x: (images, labels)
-                x_val: torch.Tensor = x.to(self._device)
-                xhat_val, mu, logvar = self._model(x_val)
+            for batch_data in eval_dataloader:  # x: (images, labels)
+                if self.is_conditional_training:
+                    x, y = batch_data
+                    x: torch.Tensor = x.to(self._device)
+                    y: torch.Tensor = y.to(self._device).squeeze(dim=1)
 
-                loss: torch.Tensor = loss_fn(xhat_val, mu, logvar, x_val)
+                    # forward pass with labels
+                    xhat_val, mu, logvar = self._model(x, y)
+                else:
+                    x, _ = batch_data
+                    x: torch.Tensor = x.to(self._device)
+                    xhat_val, mu, logvar = self._model(x)
+
+                loss: torch.Tensor = loss_fn(xhat_val, mu, logvar, x)
                 epoch_losses_val.append(loss.item())
-                total_samples += x_val.size(0)
+                total_samples += x.size(0)
 
         epoch_loss_validation: float = sum(epoch_losses_val) / total_samples
         self._metrics['validation'].update(epoch=epoch, batch_loss=epoch_loss_validation)
@@ -75,10 +98,16 @@ class VariationalAutoEncoder(AbstractAgent):
         comparison = None
 
         with torch.no_grad():
-            for batch_idx, (x, _) in enumerate(test_data):
-                x_test = x.to(self._device)
+            for batch_idx, batch_data in enumerate(test_data):
+                if self.is_conditional_training:
+                    x, y = batch_data
+                    x_test, y_test = x.to(self._device), y.to(self._device).squeeze(dim=1)
+                    x_hat_test, mu, logvar = self._model(x_test, y_test)
+                else:
+                    x, _ = batch_data
+                    x_test = x.to(self._device)
 
-                x_hat_test, mu, logvar = self._model(x_test)
+                    x_hat_test, mu, logvar = self._model(x_test)
 
                 if batch_idx == 0:
                     comparison = torch.cat([x_test[:n_samples], x_hat_test[:n_samples]])
@@ -94,20 +123,43 @@ class VariationalAutoEncoder(AbstractAgent):
         }
         return results
 
-    def predict(self, num_samples: int = 1) -> torch.Tensor:
+    def predict(self, num_samples: int = 1, labels=None) -> torch.Tensor:
         self._model.eval()
         latent_dim = self._model.latent_dim if hasattr(self._model, 'latent_dim') else 128
+
         with torch.no_grad():
             # Sample from standard normal distribution
             z = torch.randn(num_samples, latent_dim).to(self._device)
 
-            # Generate samples using the decoder
-            if hasattr(self._model, 'decode'):
-                generated_samples = self._model.decode(z)
+            if self.is_conditional_training:
+                if labels is None:
+                    # Generate random labels if not provided
+                    labels = torch.randint(0, self._model.num_classes, (num_samples,)).to(self._device)
+                elif isinstance(labels, int):
+                    labels = torch.tensor([labels]* num_samples).to(self._device)
+                generated_samples = self._model.decode(z, labels)
             else:
-                raise NotImplementedError("Model must have a 'decode' method for generation")
+                # Generate samples using the decoder
+                generated_samples = self._model.decode(z)
 
-            return generated_samples
+        return generated_samples
+
+    def generate_conditional_samples(self, num_samples: int = 1, labels=None) -> torch.Tensor:
+        """Generate samples for each specified label. Work for Conditional VAE only."""
+        if not self.is_conditional_training:
+            raise ValueError("This method is only applicable for Conditional VAE models.")
+
+        self._model.eval()
+        latent_dim = self._model.latent_dim
+        generated_samples = []
+
+        with torch.no_grad():
+            # Sample from standard normal distribution
+            for label in labels:
+                samples = self.predict(num_samples=num_samples, labels=label)
+                generated_samples.append(samples)
+
+        return torch.cat(generated_samples, dim=0)
 
     def load_parameters(self, path):
         """Load model parameters from a given path."""
@@ -171,3 +223,8 @@ class VariationalAutoEncoder(AbstractAgent):
         }
 
         return summary
+
+    @property
+    def is_conditional_training(self):
+        """Check if the model is a Conditional VAE."""
+        return self._model.model_type == VAEModelType.CVAE

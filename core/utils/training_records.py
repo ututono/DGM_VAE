@@ -82,7 +82,7 @@ class TrainingRecordsManager:
 class ConfigCompatibilityChecker:
     """Check if the current configuration is compatible with the training records."""
     CRITICAL_PARAMS = [
-        'image_size', 'latent_dim'
+        'image_size', 'latent_dim', 'model',
     ]
 
     WARNING_PARAMS = [
