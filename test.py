@@ -3,11 +3,11 @@ import sys
 from os import PathLike
 from pathlib import Path
 
-from core.models import MedMNISTVAE
+from core.models import VanillaVAE, get_model
 
 sys.path.insert(0, "../")
 
-from typing import Tuple
+from typing import Tuple, Optional
 
 from core.core import Core
 from core.loss_function import LossFunction, VAELoss
@@ -31,8 +31,18 @@ root = rootutils.setup_root(__file__, dotenv=True, pythonpath=True, cwd=False)
 
 logger = logging.getLogger(__name__)
 
-def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu", args=None):
-    network = MedMNISTVAE(img_shape=img_shape, latent_dim=latent_dim)
+
+def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu", args=None,
+                        n_classes: Optional[int] = None):
+    ModelClass = get_model(args.model)
+
+    network = ModelClass(
+        img_shape=img_shape,
+        latent_dim=latent_dim,
+        num_classes=n_classes,
+        condition_dim=args.condition_dim,
+    )
+
     agent = VariationalAutoEncoder(model=network, device=device)
 
     if checkpoint_path:
@@ -89,7 +99,6 @@ def setup_experiments():
         disable_mlflow=True,
     )
 
-
     logger.info(f"Experiment setup complete with log directory: {log_dir}")
 
     return args, log_dir, mlflow_logger, logger, root
@@ -111,7 +120,6 @@ def run_evaluation():
         artifacts_dir.mkdir(parents=True, exist_ok=True)
         print_and_save_arguments(args, save_dir=artifacts_dir)
 
-
     # Load MedMNIST data
     train_ds, val_ds, test_ds, dataset_info = load_medmnist_data(
         dataset_name=args.dataset_name,
@@ -125,10 +133,10 @@ def run_evaluation():
         train_ds=train_ds, val_ds=val_ds, test_ds=test_ds, args=args
     )
 
-
     # Initialize model
     img_shape = (dataset_info['n_channels'], args.image_size, args.image_size)
     latent_dim = args.latent_dim
+    n_classes = len(dataset_info['label']) if 'label' in dataset_info else None
     logger.info(f"Model initialized with image shape {img_shape} and latent dimension {latent_dim}")
 
     agent = init_and_load_model(
@@ -136,10 +144,11 @@ def run_evaluation():
         latent_dim=latent_dim,
         checkpoint_path=args.checkpoint_path,
         device=device,
-        args=args
+        args=args,
+        n_classes=n_classes
     )
 
-    core = Core(agent=agent, optimizer=None, loss_function=None)
+    core = Core(agent=agent, optimizer=None, loss_function=None, num_workers=args.num_workers)
 
     # Generate and save samples
     if args.output is not None:

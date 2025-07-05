@@ -1,5 +1,6 @@
 import argparse
 import logging
+import multiprocessing
 from pathlib import Path
 
 import torch
@@ -26,16 +27,18 @@ class Arguments:
         self.parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training')
 
     def add_model_arguments(self):
-        self.parser.add_argument('--model', type=str, default='vanilla_vae', help='Model name')
+        self.parser.add_argument('--model', type=str, default='vae', help='Model type')
         self.parser.add_argument('--checkpoint_path', type=str, default=None, help='Path to the model checkpoint for loading')
         self.parser.add_argument('--save_model', action='store_true', help='Save the model after training')
         self.parser.add_argument('--latent_dim', type=int, default=128, help='Dimensionality of the latent space')
+        self.parser.add_argument('--condition_dim', type=int, default=64, help='Dimensionality of the embedding layer for conditional VAE')
+        self.parser.add_argument('--beta', type=float, default=1.0, help='Beta parameter for beta-VAE, control the portion of KL divergence in the loss function')
 
     def add_training_arguments(self):
         self.parser.add_argument('--epochs', type=int, default=10, help='Number of training epochs')
-        self.parser.add_argument('--learning_rate', type=float, default=0.001, help='Learning rate for training')
+        self.parser.add_argument('--learning_rate', type=float, default=0.0001, help='Learning rate for training')
         self.parser.add_argument('--weight_decay', type=float, default=1e-4, help='Weight decay for optimizer')
-        self.parser.add_argument('--num_workers', type=int, default=4, help='Number of workers for data loading')
+        self.parser.add_argument('--num_workers', type=int, default=12, help='Number of workers for data loading')
         self.parser.add_argument('--optimizer', type=str, default='Adam', help='Optimizer to use (e.g., adam, sgd)')
         self.parser.add_argument('--force_continue', action='store_true', help='Force continue training even with compatibility warnings')
 
@@ -102,6 +105,9 @@ def post_process_args(args):
     args.device = args.device.lower()
     if not torch.cuda.is_available():
         args.device = 'cpu'
+
+    available_worker = multiprocessing.cpu_count() // 2
+    args.num_workers = min(args.num_workers, available_worker)
 
     return args
 

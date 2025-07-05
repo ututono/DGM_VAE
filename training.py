@@ -2,7 +2,7 @@ import logging
 import sys
 from os import PathLike
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from core.configs.arguments import get_arguments, print_and_save_arguments
 from core.configs.logging_config import setup_ml_logging_and_mlflow
@@ -17,7 +17,7 @@ from core.data.dataset import load_medmnist_data
 from core.vae_agent import VariationalAutoEncoder
 from core.utils.saving import save_metrics, save_model
 from core.visualization.plotting import plot_data
-from core.models import MedMNISTVAE
+from core.models import VanillaVAE, get_model
 from core.loss_function import VAELoss
 
 import torch
@@ -29,12 +29,14 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+
 def generate_samples(agent, num_samples=16, save_path: PathLike = "generated_samples.png"):
     samples_images = agent.predict(num_samples=num_samples)
     if save_path:
         save_image(samples_images, save_path, nrow=4, normalize=True)
 
-def generate_random_samples_and_reconstruct_images(agent, core:Core, test_ds, artifacts_dir):
+
+def generate_random_samples_and_reconstruct_images(agent, core: Core, test_ds, artifacts_dir):
     # Generate and save samples
     samples_save_path = Path(artifacts_dir, "generated_samples.png")
     generate_samples(agent, num_samples=16, save_path=samples_save_path)
@@ -51,8 +53,17 @@ def generate_random_samples_and_reconstruct_images(agent, core:Core, test_ds, ar
         logger.info(f"Reconstructed images saved to {comparison_save_path}")
 
 
-def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu", args=None):
-    network = MedMNISTVAE(img_shape=img_shape, latent_dim=latent_dim)
+def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu", args=None,
+                        n_classes: Optional[int] = None):
+    ModelClass = get_model(args.model)
+
+    network = ModelClass(
+        img_shape=img_shape,
+        latent_dim=latent_dim,
+        num_classes=n_classes,
+        condition_dim=args.condition_dim,
+        model_type=args.model,
+    )
     agent = VariationalAutoEncoder(model=network, device=device)
 
     if checkpoint_path:
@@ -104,7 +115,6 @@ def setup_experiments():
         disable_mlflow=args.disable_mlflow,
     )
 
-
     logger.info(f"Experiment setup complete with log directory: {log_dir}")
 
     return args, log_dir, mlflow_logger, logger, root
@@ -141,19 +151,20 @@ def run_vae_experiment():
 
     # Initialize model
     img_shape = (dataset_info['n_channels'], args.image_size, args.image_size)
+    n_classes = len(dataset_info['label'])
     latent_dim = args.latent_dim
-    loss_module = VAELoss()
+    loss_module = VAELoss(beta=args.beta)
     logger.info(f"Model initialized with image shape {img_shape} and latent dimension {latent_dim}")
 
     agent = init_and_load_model(img_shape=img_shape, latent_dim=latent_dim, checkpoint_path=args.checkpoint_path,
-                                device=device, args=args)
+                                device=device, args=args, n_classes=n_classes)
 
     optimizer = Optimizer(optimizer=args.optimizer,
                           model_parameters=agent.get_parameters(),
                           config={'lr': args.learning_rate, "weight_decay": args.weight_decay})
     loss_function = LossFunction(loss_function=loss_module,
                                  device=device)
-    core = Core(agent=agent, optimizer=optimizer, loss_function=loss_function)
+    core = Core(agent=agent, optimizer=optimizer, loss_function=loss_function, num_workers=args.num_workers)
 
     training_metrics, val_metrics = core.train(
         training_data=train_ds,
