@@ -25,12 +25,31 @@ ENVIRONMENT=development # or production, used to set the logging level
 .
 ├── logs/
 │   ├── 2025-06-24_16-00-00/
-│   │   ├── app.log # std runtime log
-│   │   └── error.log 
+│   │   ├── application.log
+│   │   └── ...
+│   └── latest/
+│       ├── application.log
+│       └── ...
+├── outputs/
+│   ├── 2025-06-24_16-00-00/
+│   │   ├── artificats/
+│   │   │   ├── generated_samples.png
+│   │   │   └── ...
+│   │   └── model/
+│   │       ├── model.pth.tar
+│   │       └── records.json
+│   └── latest/
+│       ├── artificats/
+│       │   ├── generated_samples.png
+│       │   └── ...
+│       └── models/
+│           ├── model.pth.tar
+│           └── ...
+├── core/
+│   ├── agent.py
 │   └── ...
-├── mlruns
-├── core
 ├── README.md
+├── training.py
 └── ...
 ```
 runtime logs are stored in `logs/` directory, with a subdirectory for each run, named by the date and time of the run. The `mlruns` directory is used by [MLflow](https://mlflow.org/docs/latest/ml/) to store experiment runs and artifacts.
@@ -47,18 +66,46 @@ Then open your browser and go to `http://localhost:15000`.
 If you don't want to use MLflow, you can disable it by passing the `--disable_mlflow` flag when running the training script. The artifacts and metrics will be saved in the `outputs` directory instead.
 
 ## Usage Example
+### Training
 To run the training script for vanilla VAE on MedMNIST dataset, use the following command:
 
 ```bash
 python training.py \
     --dataset_name "ChestMNIST" \
-    --model_name "vanilla_vae" \
+    --model_name "vae" \
     --batch_size 64 \
     --epochs 10 \
     --learning_rate 0.001 \
     --image_size 28 \
     --save_model \
 
+```
+
+To run the training script for conditional VAE on MedMNIST dataset, use the following command:
+
+```bash
+
+python training.py \
+    --dataset_name "ChestMNIST" \
+    --model_name "cvae" \
+    --batch_size 64 \
+    --epochs 10 \
+    --learning_rate 0.001 \
+    --image_size 28 \
+    --condition_dim 32 \
+    --save_model 
+```
+
+### Evaluation
+To run the evaluation script on the trained model, use the following command:
+
+```bash
+python test.py \
+    --checkpoint_path "outputs/latest/model" \
+    --dataset_name "ChestMNIST" \
+    --model_name "vae" \
+    --image_size 28 \
+    --batch_size 64
 ```
 
 ## CI/CD Pipeline
@@ -81,6 +128,14 @@ To view the status of the CI/CD pipeline, check the "Actions" tab in the GitHub 
 
 ### Running Tests Locally
 
+In order to facilitate the development and testing process, the repository includes a `smoke_test` flag that can be used to run a minimal set of tests locally. This is useful for quickly verifying that the code changes do not break the basic functionality of the training and evaluation scripts. Precisely, in this mode, the training script runs for:
+- 10 images for training, 2 for val and 1 for test
+- Epochs reduced to 1
+- Batch size reduced to 2
+- Image size reduced to 28x28
+- Latent dimension reduced to 32
+- Learning rate reduced to 0.001 (faster convergence)
+
 To run the same tests locally that are run in the CI/CD pipeline, use the following commands:
 
 ```bash
@@ -90,5 +145,3 @@ python training.py --dataset_name pathmnist --image_size 28 --disable_mlflow --s
 # Run evaluation test
 python test.py --checkpoint_path outputs/latest/model --dataset_name pathmnist --image_size 28 --smoke_test
 ```
-
-Note: The CI/CD pipeline uses minimal resources (reduced epochs, batch size, image size, and latent dimension) to ensure efficient execution in the GitHub Actions environment.
