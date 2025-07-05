@@ -12,7 +12,11 @@ from typing import List, Dict, Any
 from tqdm import tqdm
 
 class AbstractAgent(ABC):
-    def __init__(self, model: nn.Module, device: str, metrics: Dict[str, Metrics]):
+    def __init__(
+            self, model: nn.Module,
+            device: str,
+            metrics: Dict[str, Metrics],
+    ):
         self._model: nn.Module = model.to(device=device)
         self._device = device
         self._metrics: Dict[str, Metrics] = metrics
