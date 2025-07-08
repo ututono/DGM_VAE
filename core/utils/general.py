@@ -2,13 +2,15 @@ import errno
 import logging
 import os
 import random
+import textwrap
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 import torch
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
 
 def set_random_seed(seed: int = 42):
     """Set the seed for determinism"""
@@ -116,3 +118,44 @@ def apply_smoke_test_settings(args, train_ds, val_ds, test_ds):
                     f"  - Latent dim: {args.latent_dim}")
 
     return train_ds, val_ds, test_ds
+
+
+def hyphenate_and_wrap_text(text: str, wrap_width: int = 10) -> List[str]:
+    """
+    Hyphenate and wrap text to a specified width.
+    :param text: The input text to hyphenate and wrap.
+    :param wrap_width: The maximum width of each line.
+    :return: Hyphenated and wrapped text.
+    """
+    words = text.split()
+    lines = []
+    current_line = ""
+
+    for word in words:
+        # Check if word fits on current line
+        space_needed = len(current_line) + (1 if current_line else 0) + len(word)
+
+        if space_needed <= wrap_width:
+            # Word fits, add to current line
+            current_line += (" " if current_line else "") + word
+        else:
+            # Save current line if not empty
+            if current_line:
+                lines.append(current_line)
+
+            # Handle word that's too long
+            if len(word) > wrap_width:
+                # Split word with hyphens
+                while len(word) > wrap_width:
+                    lines.append(word[:wrap_width - 1] + "-")
+                    word = word[wrap_width - 1:]
+                current_line = word
+            else:
+                current_line = word
+
+    # Add final line if not empty
+    if current_line:
+        lines.append(current_line)
+
+    return lines
+

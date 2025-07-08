@@ -1,3 +1,5 @@
+from os import PathLike
+
 from core.agent import AbstractAgent
 from core.optimizer import Optimizer
 from core.loss_function import LossFunction
@@ -6,7 +8,7 @@ from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 import numpy as np
 
-from typing import Tuple, Any, Optional
+from typing import Tuple, Any, Optional, Dict
 from pathlib import Path
 
 
@@ -54,3 +56,20 @@ class Core():
         X_train, X_test, y_train, y_test = train_test_split(src, target, test_size=test_size)
 
         return X_train, y_train, X_test, y_test
+
+    def generate_visual_report(self, artifacts_dir: PathLike = "outputs", dataset_info: Optional[Dict[str, Any]] = None, data=None):
+        if not isinstance(artifacts_dir, Path):
+            artifacts_dir = Path(artifacts_dir)
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+        agent = self._agent
+        # Generate a report based on the model's output
+        if agent.is_conditional_training:
+            from core.visualization.visualize_model_output import generate_cvae_report
+
+            data_loader = DataLoader(data, batch_size=64, shuffle=True, num_workers=self._num_workers) if data else None
+            generate_cvae_report(agent, artifacts_dir=artifacts_dir, dataset_info=dataset_info, data_loader=data_loader)
+
+
+
+
