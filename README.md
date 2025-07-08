@@ -145,3 +145,7 @@ python training.py --dataset_name pathmnist --image_size 28 --disable_mlflow --s
 # Run evaluation test
 python test.py --checkpoint_path outputs/latest/model --dataset_name pathmnist --image_size 28 --smoke_test
 ```
+
+## Fine-tuning and Hyperparameter Optimization
+
+Here is a spreadsheet where you can find the results of the hyperparameter optimization experiments conducted on the MedMNIST dataset: [Hyperparameter Optimization Results](https://docs.google.com/spreadsheets/d/1PHzUC_Qt4-nAHUrhF_N-p71zXtW7jW4IrrTwQswZ1i8/edit?usp=sharing).
