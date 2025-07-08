@@ -10,14 +10,9 @@ sys.path.insert(0, "../")
 from typing import Tuple, Optional
 
 from core.core import Core
-from core.loss_function import LossFunction, VAELoss
-from core.optimizer import Optimizer
 from core.vae_agent import VariationalAutoEncoder
 
 import torch
-import torch.nn.functional as F
-import torch.nn as nn
-from torchvision import datasets, transforms
 from torchvision.utils import save_image
 
 from core.data.dataset import load_medmnist_data
@@ -41,6 +36,7 @@ def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu
         latent_dim=latent_dim,
         num_classes=n_classes,
         condition_dim=args.condition_dim,
+        model_type=args.model,
     )
 
     agent = VariationalAutoEncoder(model=network, device=device)
@@ -116,7 +112,10 @@ def run_evaluation():
         mlflow_logger.log_hyperparams(args)
         artifacts_dir = mlflow_logger.artifacts_dir
     else:
-        artifacts_dir = Path(root, "outputs", timestamp, 'artifacts')
+        if args.output:
+            artifacts_dir = Path(args.output, 'artifacts')
+        else:
+            artifacts_dir = Path(root, "outputs", timestamp, 'artifacts')
         artifacts_dir.mkdir(parents=True, exist_ok=True)
         print_and_save_arguments(args, save_dir=artifacts_dir)
 
@@ -150,21 +149,9 @@ def run_evaluation():
 
     core = Core(agent=agent, optimizer=None, loss_function=None, num_workers=args.num_workers)
 
-    # Generate and save samples
-    if args.output is not None:
-        artifacts_dir = Path(args.output, 'artifacts')
-    else:
-        samples_save_path = Path(artifacts_dir, "generated_samples.png")
-        generate_samples(agent, num_samples=16, save_path=samples_save_path)
-        logger.info(f"Generated samples saved to {samples_save_path}")
-
-    # Reconstruct images from test set
-    test_results = core.test(data=test_ds)
-    logger.info(f"Test results: {test_results['test_loss(recon_loss)']}")
-    if 'comparison' in test_results:
-        comparison_save_path = Path(artifacts_dir, "reconstructed_comparison.png")
-        save_image(test_results['comparison'], comparison_save_path, nrow=8, normalize=True)
-        logger.info(f"Reconstructed images saved to {comparison_save_path}")
+    if args.create_visual_report:
+        logger.info("Creating visual report for the model output...")
+        core.generate_visual_report(artifacts_dir=artifacts_dir, dataset_info=dataset_info, data=test_ds)
 
 
 if __name__ == '__main__':

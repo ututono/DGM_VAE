@@ -56,6 +56,7 @@ class Arguments:
     def add_extra_arguments(self):
         self.parser.add_argument('--smoke_test', action='store_true',
                                  help='Run a smoke test with minimal data (10 images for train, 2 for val and 1 for test), epochs (1) and batch size (2)')
+        self.parser.add_argument('--create_visual_report', action='store_true', help='Create several certain figures for the project report')
 
 
     def add_all_arguments(self):
