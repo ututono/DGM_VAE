@@ -157,14 +157,14 @@ class ConfigCompatibilityChecker:
             message += "\n" + "Compatibility check failed"
 
         if compatibility_result['critical_issues']:
-            message += "\n" + "CRITICAL ISSUES:"
+            message += "\n" + "CRITICAL ISSUES (Loading will be suspended):"
             for issue in compatibility_result['critical_issues']:
                 message += f"\n  • {issue['parameter']}: {issue['message']}"
                 message += f"\n    Current: {issue['current']}"
                 message += f"\n    Saved:   {issue['saved']}"
 
         if compatibility_result['warnings']:
-            message += "\n" + "WARNINGS:"
+            message += "\n" + "WARNINGS (Continue to load weights into model):"
             for warning in compatibility_result['warnings']:
                 message += f"\n  • {warning['parameter']}: {warning['message']}"
                 message += f"\n    Current: {warning['current']}"
