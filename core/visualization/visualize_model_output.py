@@ -77,63 +77,55 @@ def generate_class_conditioned_samples_grid(
         class_names.append(class_labels.get(str(class_idx), f'Class {class_idx}'))
 
     # Concatenate all samples
-    all_samples_combined = torch.cat(all_samples, dim=0)
+    all_samples = torch.cat(all_samples, dim=0)
 
-    grid = make_grid(all_samples_combined, nrow=samples_per_class, normalize=True, padding=2, pad_value=1.0)
+    grid = make_grid(all_samples, nrow=samples_per_class, normalize=True, padding=2, pad_value=1.0)
 
     # Save the grid image
     save_path = artifacts_dir / "cvae_conditional_samples"
     save_image(grid, save_path.with_suffix(".png"))
     save_image(grid, save_path.with_suffix(".pdf"))
 
-    # Create a grid of subplots
-    fig, axes = plt.subplots(n_classes, samples_per_class, figsize=fig_size)
+    # Create annotated version with class labels
+    fig, ax = plt.subplots(figsize=fig_size)
 
-    # Handle edge case when only one row/column
-    if n_classes == 1:
-        axes = axes.reshape(1, -1)
-    if samples_per_class == 1:
-        axes = axes.reshape(-1, 1)
+    # Convert tensor to numpy for matplotlib
+    grid_np = grid.permute(1, 2, 0).cpu().numpy()
+    if grid_np.shape[2] == 1:  # Grayscale
+        grid_np = grid_np.squeeze(2)
+        ax.imshow(grid_np, cmap='gray')
+    else:
+        ax.imshow(grid_np)
 
-    # Calculate appropriate font size and wrap width
+    # Add class labels on the left side
+    img_height = grid_np.shape[0]
+    row_height = img_height // n_classes
+
+    # Calculate appropriate font size and wrap width based on number of classes
     label_fontsize, wrap_width = compute_wrap_width_and_label_font_size(n_classes)
 
-    for row_idx, class_samples in enumerate(all_samples):
-        for col_idx, sample in enumerate(class_samples):
-            ax = axes[row_idx, col_idx]
+    for i, class_name in enumerate(class_names):
+        y_pos = (i + 0.5) * row_height
 
-            # Convert sample to image
-            img = sample.cpu().permute(1, 2, 0).numpy()
-            if img.shape[2] == 1:  # Grayscale
-                img = img.squeeze(2)
-                ax.imshow(img, cmap='gray')
-            else:
-                ax.imshow(img)
+        # Join lines with newline characters
+        display_name = wrap_class_name(class_name, wrap_width=wrap_width)
 
-            ax.axis('off')
+        ax.text(-40, y_pos, display_name, rotation=0, ha='right', va='center',
+                fontsize=label_fontsize, fontweight='bold', color='black',
+                linespacing=1.2)
 
-            # Add label on the left side (only once per row)
-            if col_idx == 0:
-                class_name = wrap_class_name(class_names[row_idx], wrap_width=wrap_width)
-                ax.text(-0.3, 0.5, class_name,
-                        transform=ax.transAxes,
-                        ha='right', va='center',
-                        fontsize=label_fontsize,
-                        fontweight='bold')
+    ax.set_title(f'CVAE Conditional Generation - Samples by Class on {dataset_name}', fontsize=14, fontweight='bold')
+    ax.axis('off')
 
-    fig.suptitle(f'CVAE Conditional Generation - Samples by Class on {dataset_name}',
-                 fontsize=14, fontweight='bold', y=0.98)
-
-    # Adjust spacing
-    # plt.subplots_adjust(left=0.15, right=0.98, top=0.93, bottom=0.05, wspace=0.01, hspace=0.1)
+    # Adjust subplot parameters to make room for multi-line labels
     plt.tight_layout()
-
+    plt.subplots_adjust(left=0.2, right=0.95, top=0.9, bottom=0.1)
     save_path = artifacts_dir / "cvae_conditional_samples_labeled"
     plt.savefig(save_path.with_suffix(".png"), bbox_inches='tight', format='png')
     plt.savefig(save_path.with_suffix(".pdf"), bbox_inches='tight', format='pdf')
     plt.close()
 
-    logger.info(f"Conditional samples (subplots) saved to {save_path}")
+    logger.info(f"Conditional samples saved to {artifacts_dir}")
 
 
 def generate_reconstruction_comparison(

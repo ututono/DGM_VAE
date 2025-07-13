@@ -96,7 +96,7 @@ class ConditionalVAE(VanillaVAE):
             self,
             img_shape,
             latent_dim=128,
-            model_type: str | VAEModelType = VAEModelType.VAE,
+            model_type: str | VAEModelType = VAEModelType.CVAE,
             num_classes=10,
             condition_dim: int = 32,
             **kwargs
@@ -160,7 +160,7 @@ class ConditionalVAE(VanillaVAE):
         Transform the condition embedding to a channel that can be concatenated with the input image.
         """
         # Reshape to match the image dimensions
-        assert condition_embed.dim() == 2, "Condition embedding should be of shape [batch_size, condition_dim]"
+        assert condition_embed.dim() == 2, f"Condition embedding should be of shape [batch_size, condition_dim], got {condition_embed.shape}"
         batch_size = condition_embed.shape[0]
         _, h, w = self.img_shape
 
@@ -175,7 +175,6 @@ class ConditionalVAE(VanillaVAE):
 
     def encode(self, x, labels):
         """Encode input to latent parameters with condition"""
-        breakpoint()
         condition_embed = self.condition_embedding(labels)
         condition_channel = self._transform_condition_embed_to_channel(condition_embed)
 
@@ -193,7 +192,6 @@ class ConditionalVAE(VanillaVAE):
         return mu, logvar
 
     def decode(self, z, labels):
-        breakpoint()
         condition_embed = self.condition_embedding(labels)
 
         """Decode latent variables to reconstruction with condition"""
