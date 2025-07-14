@@ -73,6 +73,35 @@ def load_medmnist_data(
             size=image_size
         )
 
+    def _check_is_multi_label(dataset) -> bool:
+        """
+        Check if the dataset is multi-label
+
+        Logic:
+        - Single-label: if label shape is () or (1,)
+        - Multi-label: if label shape is (n_classes,) or (n_samples, n_classes) where n_classes > 1
+        """
+        _, sample_label = dataset[0]
+        if isinstance(sample_label, torch.Tensor):
+            label_shape = sample_label.shape
+        else:
+            label_shape = torch.tensor(sample_label).shape
+
+        is_multi_label = False
+        if len(label_shape) < 1:
+            is_multi_label = False
+
+            return is_multi_label
+        else:
+            if label_shape[0] > 1:
+                is_multi_label = True
+            elif len(label_shape) > 1 and label_shape[1] > 1:
+                is_multi_label = True
+            else:
+                is_multi_label = False
+        return is_multi_label
+
+
     info = INFO[dataset_name.lower()]
     task = info['task']
     n_channels = info['n_channels']
@@ -116,5 +145,10 @@ def load_medmnist_data(
         image_size=image_size,
         as_rgb=as_rgb
     )
+
+    is_multi_label = _check_is_multi_label(train_dataset)
+    assert is_multi_label == _check_is_multi_label(val_dataset), "Validation dataset label type does not match training dataset"
+
+    info['is_multi_label'] = is_multi_label
 
     return train_dataset, val_dataset, test_dataset, info

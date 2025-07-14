@@ -54,7 +54,7 @@ def generate_random_samples_and_reconstruct_images(agent, core: Core, test_ds, a
 
 
 def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu", args=None,
-                        n_classes: Optional[int] = None):
+                        n_classes: Optional[int] = None, is_multi_label: bool = False):
     ModelClass = get_model(args.model)
 
     network = ModelClass(
@@ -63,6 +63,7 @@ def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu
         num_classes=n_classes,
         condition_dim=args.condition_dim,
         model_type=args.model,
+        is_multi_label=is_multi_label,
     )
     agent = VariationalAutoEncoder(model=network, device=device)
 
@@ -152,12 +153,13 @@ def run_vae_experiment():
     # Initialize model
     img_shape = (dataset_info['n_channels'], args.image_size, args.image_size)
     n_classes = len(dataset_info['label'])
+    is_multi_label = dataset_info['is_multi_label']
     latent_dim = args.latent_dim
     loss_module = VAELoss(beta=args.beta)
     logger.info(f"Model initialized with image shape {img_shape} and latent dimension {latent_dim}")
 
     agent = init_and_load_model(img_shape=img_shape, latent_dim=latent_dim, checkpoint_path=args.checkpoint_path,
-                                device=device, args=args, n_classes=n_classes)
+                                device=device, args=args, n_classes=n_classes, is_multi_label=is_multi_label)
 
     optimizer = Optimizer(optimizer=args.optimizer,
                           model_parameters=agent.get_parameters(),

@@ -39,7 +39,7 @@ class VariationalAutoEncoder(AbstractAgent):
                 # For Conditional VAE, we need to concatenate the labels with the images
                 x, y = batch_data  # x: (images), y: (labels)
                 x: torch.Tensor = x.to(self._device)
-                y: torch.Tensor = y.to(self._device).squeeze(dim=1)
+                y: torch.Tensor = self._process_labels(y).to(self._device)
 
                 # forward pass with labels
                 x_hat, mu, logvar = self._model(x, y)
@@ -70,7 +70,7 @@ class VariationalAutoEncoder(AbstractAgent):
                 if self.is_conditional_training:
                     x, y = batch_data
                     x: torch.Tensor = x.to(self._device)
-                    y: torch.Tensor = y.to(self._device).squeeze(dim=1)
+                    y: torch.Tensor = self._process_labels(y).to(self._device)
 
                     # forward pass with labels
                     xhat_val, mu, logvar = self._model(x, y)
@@ -87,6 +87,28 @@ class VariationalAutoEncoder(AbstractAgent):
         self._metrics['validation'].update(epoch=epoch, batch_loss=epoch_loss_validation)
 
         # self._metrics['validation'].update(epoch=epoch, batch_loss=epoch_loss_validation)
+    @staticmethod
+    def _process_labels(labels):
+        """Process different dimensions of labels for Conditional VAE."""
+        # handle 3D labels e.g., (batch_size, num_samples, num_classes)
+        if len(labels.shape) ==3:
+            # if the number of samples is 1, we can squeeze it
+            if labels.shape[1] == 1:
+                labels = labels.squeeze(dim=1)
+            else:
+                # Flatten the labels to (batch_size, num_classes)
+                bsz = labels.shape[0]
+                labels = labels.view(bsz, -1)
+        # handle 2D labels, either single-label or multi-label e.g., (batch_size, num_classes)
+        elif len(labels.shape) == 2:
+            if labels.shape[1] == 1:
+                # Single-label case, squeeze to (batch_size,)
+                labels = labels.squeeze(dim=1)
+
+        # no need to process 1D labels, they are already in the correct shape
+        return labels
+
+
 
     def test(self, test_data):
         """Test the model on test data"""
@@ -133,10 +155,24 @@ class VariationalAutoEncoder(AbstractAgent):
 
             if self.is_conditional_training:
                 if labels is None:
-                    # Generate random labels if not provided
-                    labels = torch.randint(0, self._model.num_classes, (num_samples,)).to(self._device)
+                    # Generate labels based on model type
+                    if self._model.is_multi_label:
+                        # For multi-label, generate random binary vectors
+                        labels = torch.randint(0, 2, (num_samples, self._model.num_classes)).float().to(self._device)
+                    else:
+                        # For single-label, generate random class indices
+                        labels = torch.randint(0, self._model.num_classes, (num_samples,)).to(self._device)
                 elif isinstance(labels, int):
-                    labels = torch.tensor([labels]* num_samples).to(self._device)
+                    # Convert single integer to appropriate format
+                    if self._model.is_multi_label:
+                        # Create one-hot vector for multi-label model
+                        one_hot = torch.zeros(num_samples, self._model.num_classes)
+                        one_hot[:, labels] = 1.0
+                        labels = one_hot.to(self._device)
+                    else:
+                        # Repeat for single-label model
+                        labels = torch.tensor([labels] * num_samples).to(self._device)
+
                 generated_samples = self._model.decode(z, labels)
             else:
                 # Generate samples using the decoder

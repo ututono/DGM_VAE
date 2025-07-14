@@ -99,10 +99,12 @@ class ConditionalVAE(VanillaVAE):
             model_type: str | VAEModelType = VAEModelType.CVAE,
             num_classes=10,
             condition_dim: int = 32,
+            is_multi_label: bool = False,
             **kwargs
     ):
         self.num_classes = num_classes
         self.condition_dim = condition_dim
+        self.is_multi_label = is_multi_label
 
         super().__init__(img_shape=img_shape, latent_dim=latent_dim, model_type=model_type, **kwargs)
 
@@ -111,8 +113,10 @@ class ConditionalVAE(VanillaVAE):
         c, h, w = self.img_shape
 
         # Condition embedding
-        self.condition_embedding = nn.Embedding(self.num_classes,
-                                                self.condition_dim)  # Out: [batch_size, condition_dim]
+        if self.is_multi_label:
+            self.condition_embedding = nn.Linear(self.num_classes, self.condition_dim)
+        else:
+            self.condition_embedding = nn.Embedding(self.num_classes, self.condition_dim)  # Out: [batch_size, condition_dim]
 
         # Encoder
         self.encoder = nn.Sequential(
@@ -172,10 +176,19 @@ class ConditionalVAE(VanillaVAE):
         condition_channel = condition_channel.expand(batch_size, 1, h, w)  # [batch_size, 1, h, w]
         return condition_channel
 
+    def _get_condition_embedding(self, labels):
+        """
+        Get the condition embedding based on the labels.
+        If multi-label, use linear embedding; otherwise, use embedding layer.
+        """
+        if self.is_multi_label:
+            return self.condition_embedding(labels.float())
+        else:
+            return self.condition_embedding(labels)
 
     def encode(self, x, labels):
         """Encode input to latent parameters with condition"""
-        condition_embed = self.condition_embedding(labels)
+        condition_embed = self._get_condition_embedding(labels)
         condition_channel = self._transform_condition_embed_to_channel(condition_embed)
 
         # Concatenate condition channel with input image
@@ -192,7 +205,7 @@ class ConditionalVAE(VanillaVAE):
         return mu, logvar
 
     def decode(self, z, labels):
-        condition_embed = self.condition_embedding(labels)
+        condition_embed = self._get_condition_embedding(labels)
 
         """Decode latent variables to reconstruction with condition"""
         z_cond = torch.cat([z, condition_embed], dim=1)
