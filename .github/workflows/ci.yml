@@ -35,11 +35,11 @@ jobs:
 
     - name: Run basic training test
       run: |
-        python training.py --dataset_name pathmnist --image_size 28 --disable_mlflow --save_model --smoke_test
+        python training.py --dataset_names "chestmnist" --image_size 28 --disable_mlflow --save_model --smoke_test
 
     - name: Run evaluation test
       run: |
-        python test.py --checkpoint_path outputs/latest/model --dataset_name pathmnist --image_size 28 --smoke_test
+        python test.py --checkpoint_path outputs/latest/model --dataset_names "chestmnist" --image_size 28 --smoke_test
 
     - name: Verify training outputs
       run: |
