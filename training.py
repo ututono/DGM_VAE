@@ -4,8 +4,12 @@ from os import PathLike
 from pathlib import Path
 from typing import List, Optional
 
+from torch.utils.data import DataLoader
+
 from core.configs.arguments import get_arguments, print_and_save_arguments
 from core.configs.logging_config import setup_ml_logging_and_mlflow
+from core.configs.values import DataSplitType, VAEModelType
+from core.data.hybrid_dataset import MultiDatasetLoader, collate_conditioned_samples
 from core.utils.general import set_random_seed, root_path, symlink_force, apply_smoke_test_settings
 
 sys.path.insert(0, '../')
@@ -53,18 +57,98 @@ def generate_random_samples_and_reconstruct_images(agent, core: Core, test_ds, a
         logger.info(f"Reconstructed images saved to {comparison_save_path}")
 
 
-def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu", args=None,
-                        n_classes: Optional[int] = None, is_multi_label: bool = False):
-    ModelClass = get_model(args.model)
+def generate_hybrid_samples_and_reconstruct(
+        agent,
+        core: Core,
+        multi_loader: MultiDatasetLoader,
+        test_datasets:dict,
+        artifacts_dir,
+        mixed_dataset = None,
+):
+    """Generate samples for hybrid label datasets"""
 
-    network = ModelClass(
-        img_shape=img_shape,
-        latent_dim=latent_dim,
-        num_classes=n_classes,
-        condition_dim=args.condition_dim,
-        model_type=args.model,
-        is_multi_label=is_multi_label,
-    )
+    if agent.use_hybrid_conditioning:
+        for dataset_id, dataset_name in enumerate(multi_loader.dataset_names):
+            logger.info(f"Generating samples for {dataset_name}")
+
+
+            samples = agent.generate_dataset_specific_samples(
+                dataset_id=dataset_id,
+                dataset_name=dataset_name,
+                num_samples_per_class=4
+            )
+
+            samples_save_path = Path(artifacts_dir, f"generated_samples_{dataset_name}.png")
+            save_image(samples, samples_save_path, nrow=4, normalize=True)
+            logger.info(f"Generated samples for {dataset_name} saved to {samples_save_path}")
+
+    else:
+        # Fallback to general sample generation
+        samples_save_path = Path(artifacts_dir, "generated_samples.png")
+        generate_samples(agent, num_samples=16, save_path=samples_save_path)
+        logger.info(f"Generated samples saved to {samples_save_path}")
+
+    # Test reconstruction on the mixed dataset
+    if mixed_dataset:
+        test_results = core.test(data=test_datasets, batch_size=8)
+        logger.info(f"Test results on mixed dataset: {test_results['test_loss(recon_loss)']}")
+        if 'comparison' in test_results:
+            comparison_save_path = Path(artifacts_dir, "reconstructed_comparison_mixed.png")
+            save_image(test_results['comparison'], comparison_save_path, nrow=8, normalize=True)
+            logger.info(f"Reconstructed images for mixed dataset saved to {comparison_save_path}")
+
+    # Test reconstruction on each dataset
+    all_comparisons = []
+    for dataset_name, test_ds in test_datasets.items():
+        logger.info(f"Testing reconstruction on {dataset_name}")
+
+        test_results = core.test(data=test_ds)
+        logger.info(f"Test results for {dataset_name}: {test_results['test_loss(recon_loss)']}")
+
+        if 'comparison' in test_results:
+            comparison_save_path = Path(artifacts_dir, f"reconstructed_comparison_{dataset_name}.png")
+            save_image(test_results['comparison'], comparison_save_path, nrow=8, normalize=True)
+            logger.info(f"Reconstructed images for {dataset_name} saved to {comparison_save_path}")
+            all_comparisons.append(test_results['comparison'])
+
+    # Create combined comparison
+    if len(all_comparisons) > 1:
+        combined_comparison = torch.cat(all_comparisons[:3], dim=0)
+        combined_save_path = Path(artifacts_dir, "reconstructed_comparison_all.png")
+        save_image(combined_comparison, combined_save_path, nrow=8, normalize=True)
+        logger.info(f"Combined reconstructed images saved to {combined_save_path}")
+
+def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu", args=None,
+                        conditioning_info:dict = None):
+
+
+    def _init_model_backbone(args, conditioning_info, img_shape, latent_dim):
+        ModelClass = get_model(args.model)
+
+        model_kwargs = {
+            'img_shape': img_shape,
+            'latent_dim': latent_dim,
+            'model_type': args.model,
+        }
+
+        # Add hybrid conditioning parameters
+        if args.model == VAEModelType.CVAE and conditioning_info:
+            model_kwargs.update({
+                'num_datasets': conditioning_info['num_datasets'],
+                'label_type_info': conditioning_info['label_type_info'],
+                'dataset_embed_dim': 16,
+                'class_embed_dim': 16,
+                'use_hybrid_conditioning': True,
+                'condition_dim': args.condition_dim,
+            })
+
+            # Fallback for traditional conditioning
+            total_classes = sum(info['n_classes'] for info in conditioning_info['datasets_info'].values())
+            model_kwargs['num_classes'] = total_classes
+            return ModelClass(**model_kwargs)
+
+    network = _init_model_backbone(args, conditioning_info, img_shape, latent_dim)
+
     agent = VariationalAutoEncoder(model=network, device=device)
 
     if checkpoint_path:
@@ -100,6 +184,29 @@ def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu
             print(f"Checkpoint path {checkpoint_path} does not exist. Starting with a new model.")
 
     return agent
+
+
+def _init_model_backbone(args, conditioning_info, img_shape, latent_dim):
+    ModelClass = get_model(args.model)
+    model_kwargs = {
+        'img_shape': img_shape,
+        'latent_dim': latent_dim,
+        'model_type': args.model,
+    }
+    # Add hybrid conditioning parameters
+    if ModelClass.__name__ == 'ConditionalVAE' and conditioning_info:
+        model_kwargs.update({
+            'num_datasets': conditioning_info['num_datasets'],
+            'label_type_info': conditioning_info['label_type_info'],
+            'dataset_embed_dim': 16,
+            'class_embed_dim': 16,
+            'use_hybrid_conditioning': True,
+            'condition_dim': args.condition_dim,
+        })
+
+        # Fallback for traditional conditioning
+        total_classes = sum(info['n_classes'] for info in conditioning_info['datasets_info'].values())
+        model_kwargs['num_classes'] = total_classes
 
 
 def setup_experiments():
@@ -138,28 +245,44 @@ def run_vae_experiment():
         print_and_save_arguments(args, save_dir=artifacts_dir)
 
     # Load MedMNIST data
-    train_ds, val_ds, test_ds, dataset_info = load_medmnist_data(
-        dataset_name=args.dataset_name,
-        download=True,
+    hybrid_dataloader = MultiDatasetLoader(
+        dataset_names=args.dataset_names,
         image_size=args.image_size,
-        custom_transform=None,
-        as_rgb=args.as_rgb,
+        download=True,
+        dataset_weights=args.dataset_weights,
     )
 
-    train_ds, val_ds, test_ds = apply_smoke_test_settings(
-        train_ds=train_ds, val_ds=val_ds, test_ds=test_ds, args=args
-    )
+    conditioning_info = hybrid_dataloader.conditioning_info
+    logger.info(f"Conditioning info: {conditioning_info}")
+
+    # Get mixed dataset
+    train_mixed, train_sampler = hybrid_dataloader.get_combined_dataset(DataSplitType.TRAIN.value)
+    val_mixed, val_sampler = hybrid_dataloader.get_combined_dataset(DataSplitType.TRAIN.value)
+    test_mixed, test_sampler = hybrid_dataloader.get_combined_dataset(DataSplitType.TEST.value)
+
+    # Get individual test datasets
+    test_datasets = {}
+    for dataset_name in args.dataset_names:
+        test_datasets[dataset_name] = hybrid_dataloader.get_single_dataset(dataset_name, DataSplitType.TEST.value)
+
+    if args.smoke_test:
+        logger.info("Running smoke test with minimal data")
+
+        train_mixed, val_mixed, test_mixed = apply_smoke_test_settings(
+            train_ds=train_mixed, val_ds=val_mixed, test_ds=test_mixed, args=args
+        )
+        train_sampler = val_sampler = None
 
     # Initialize model
-    img_shape = (dataset_info['n_channels'], args.image_size, args.image_size)
-    n_classes = len(dataset_info['label'])
-    is_multi_label = dataset_info['is_multi_label']
+    img_shape = (conditioning_info['unified_channels'], args.image_size, args.image_size)
+    # n_classes = len(dataset_info['label'])
+    # is_multi_label = dataset_info['is_multi_label']
     latent_dim = args.latent_dim
     loss_module = VAELoss(beta=args.beta)
     logger.info(f"Model initialized with image shape {img_shape} and latent dimension {latent_dim}")
 
     agent = init_and_load_model(img_shape=img_shape, latent_dim=latent_dim, checkpoint_path=args.checkpoint_path,
-                                device=device, args=args, n_classes=n_classes, is_multi_label=is_multi_label)
+                                device=device, args=args, conditioning_info=conditioning_info)
 
     optimizer = Optimizer(optimizer=args.optimizer,
                           model_parameters=agent.get_parameters(),
@@ -169,10 +292,13 @@ def run_vae_experiment():
     core = Core(agent=agent, optimizer=optimizer, loss_function=loss_function, num_workers=args.num_workers)
 
     training_metrics, val_metrics = core.train(
-        training_data=train_ds,
-        evaluation_data=val_ds,
+        training_data=train_mixed,
+        evaluation_data=val_mixed,
         batch_size=args.batch_size,
         epochs=args.epochs,
+        train_sampler=train_sampler,
+        val_sampler=val_sampler,
+        collate_fn=collate_conditioned_samples
     )
     logger.info("Training completed")
 
@@ -195,8 +321,14 @@ def run_vae_experiment():
     latest_artifacts_link = Path(root, "outputs", 'latest', 'artifacts')
     symlink_force(artifacts_dir, latest_artifacts_link)
 
-    generate_random_samples_and_reconstruct_images(agent=agent, core=core, test_ds=test_ds, artifacts_dir=artifacts_dir)
-
+    generate_hybrid_samples_and_reconstruct(
+        agent=agent,
+        core=core,
+        multi_loader=hybrid_dataloader,
+        test_datasets=test_datasets,
+        # mixed_dataset=test_mixed,
+        artifacts_dir=artifacts_dir
+    )
 
 if __name__ == '__main__':
     run_vae_experiment()

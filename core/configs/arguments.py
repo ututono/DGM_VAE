@@ -20,6 +20,8 @@ class Arguments:
 
     def add_data_arguments(self):
         self.parser.add_argument('--dataset_name', type=str, default='pathmnist', help='Input file path')
+        self.parser.add_argument('--dataset_names', type=str, default='pathminst', help='Comma-separated list of dataset names to use, e.g., "pathmnist, chestmnist"')
+        self.parser.add_argument('--dataset_weights', type=str, default=None, help='Comma-separated sampling weights for datasets (e.g., "1.0,0.5")')
         self.parser.add_argument('--image_size', type=int, default=28, help='The size of the crop to take from the original images')
         self.parser.add_argument('--as_rgb', action='store_true', help='Load images as RGB instead of grayscale')
         self.parser.add_argument('--output', type=str, help='Output file path (directory) for saving results')
@@ -98,6 +100,17 @@ def print_and_save_arguments(args, save_dir="outputs"):
 
     logger.info(message)
 
+def deprecated_warning(args):
+    """
+    Print a warning message for deprecated arguments.
+    """
+    deprecated_args = {
+        'dataset_name': 'dataset_names',
+    }
+
+    for old_arg, new_arg in deprecated_args.items():
+        if hasattr(args, old_arg):
+            logger.warning(f"Argument '{old_arg}' is deprecated. Use '{new_arg}' instead.")
 
 def post_process_args(args):
     """
@@ -109,6 +122,18 @@ def post_process_args(args):
 
     available_worker = multiprocessing.cpu_count() // 2
     args.num_workers = min(args.num_workers, available_worker)
+
+    deprecated_warning(args)
+
+    # parse dataset names
+    if isinstance(args.dataset_names, str):
+        args.dataset_names = [name.strip() for name in args.dataset_names.split(',')]
+
+    # parse dataset weights
+    if args.dataset_weights is not None:
+        args.dataset_weights = [float(weight.strip()) for weight in args.dataset_weights.split(',')]
+    else:
+        args.dataset_weights = [1.0] * len(args.dataset_names)
 
     return args
 

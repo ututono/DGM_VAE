@@ -51,3 +51,22 @@ class VAEModelType(TypeEnum):
     """
     VAE = "vae"
     CVAE = "cvae"
+
+
+class DatasetLabelType(TypeEnum):
+    """
+    Enum for dataset label types.
+    - single: the dataset has a single label for each sample
+    - multi: the dataset has multiple labels for each sample
+    """
+    SINGLE = "single"
+    MULTI = "multi"
+
+class DatasetLabelInfoNames(TypeEnum):
+    """
+    Key names in dataset label info.
+    - type: the type of the label (e.g. single, multi)
+    - n_classes: the number of classes in the label
+    """
+    TYPE = "type"
+    N_CLASSES = "n_classes"
