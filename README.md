@@ -71,7 +71,7 @@ To run the training script for vanilla VAE on MedMNIST dataset, use the followin
 
 ```bash
 python training.py \
-    --dataset_name "ChestMNIST" \
+    --dataset_names "ChestMNIST" \
     --model_name "vae" \
     --batch_size 64 \
     --epochs 10 \
@@ -86,7 +86,7 @@ To run the training script for conditional VAE on MedMNIST dataset, use the foll
 ```bash
 
 python training.py \
-    --dataset_name "ChestMNIST" \
+    --dataset_names "ChestMNIST" \
     --model_name "cvae" \
     --batch_size 64 \
     --epochs 10 \
@@ -96,13 +96,16 @@ python training.py \
     --save_model 
 ```
 
+Multiple datasets can be specified by separating them with commas, e.g., `--dataset_names "ChestMNIST,PathMNIST"`. 
+You can also adjust the portions of different datasets by using the `--dataset_weights` flag, e.g., `--dataset_portions "0.5,0.5"` for equal portions of both datasets.
+
 ### Evaluation
 To run the evaluation script on the trained model, use the following command:
 
 ```bash
 python test.py \
     --checkpoint_path "outputs/latest/model" \
-    --dataset_name "ChestMNIST" \
+    --dataset_names "ChestMNIST" \
     --model_name "vae" \
     --image_size 28 \
     --batch_size 64
@@ -140,10 +143,10 @@ To run the same tests locally that are run in the CI/CD pipeline, use the follow
 
 ```bash
 # Run training test
-python training.py --dataset_name pathmnist --image_size 28 --disable_mlflow --save_model --smoke_test
+python training.py --dataset_names pathmnist --image_size 28 --disable_mlflow --save_model --smoke_test
 
 # Run evaluation test
-python test.py --checkpoint_path outputs/latest/model --dataset_name pathmnist --image_size 28 --smoke_test
+python test.py --checkpoint_path outputs/latest/model --dataset_names pathmnist --image_size 28 --smoke_test
 ```
 
 ## Fine-tuning and Hyperparameter Optimization
