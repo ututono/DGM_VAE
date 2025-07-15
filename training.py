@@ -64,6 +64,7 @@ def generate_hybrid_samples_and_reconstruct(
         test_datasets:dict,
         artifacts_dir,
         mixed_dataset = None,
+        sampler = None
 ):
     """Generate samples for hybrid label datasets"""
 
@@ -90,7 +91,13 @@ def generate_hybrid_samples_and_reconstruct(
 
     # Test reconstruction on the mixed dataset
     if mixed_dataset:
-        test_results = core.test(data=test_datasets, batch_size=8)
+        test_results = core.test(
+            data=test_datasets,
+            batch_size=8,
+            collate_fn=collate_conditioned_samples,
+            sampler=sampler
+        )
+
         logger.info(f"Test results on mixed dataset: {test_results['test_loss(recon_loss)']}")
         if 'comparison' in test_results:
             comparison_save_path = Path(artifacts_dir, "reconstructed_comparison_mixed.png")
@@ -101,8 +108,11 @@ def generate_hybrid_samples_and_reconstruct(
     all_comparisons = []
     for dataset_name, test_ds in test_datasets.items():
         logger.info(f"Testing reconstruction on {dataset_name}")
-
-        test_results = core.test(data=test_ds)
+        test_results = core.test(
+            data=test_ds,
+            batch_size=8,
+            collate_fn=collate_conditioned_samples
+        )
         logger.info(f"Test results for {dataset_name}: {test_results['test_loss(recon_loss)']}")
 
         if 'comparison' in test_results:

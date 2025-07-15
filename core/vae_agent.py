@@ -290,6 +290,11 @@ class VariationalAutoEncoder(AbstractAgent):
             else:  # multi-label
                 n_classes = self._model.label_type_info[dataset_name][N_CLASS_NAME]
                 labels = torch.randint(0, 2, (num_samples, n_classes)).float().to(self._device)
+        else:
+            if isinstance(labels, int) and label_type == DatasetLabelType.SINGLE:
+                # Convert single integer to appropriate format
+                labels = torch.tensor([labels] * num_samples).to(self._device)
+
         condition_kwargs = self._prepare_condition_kwargs_for_generation(
             num_samples=num_samples,
             dataset_id=dataset_id,
@@ -421,7 +426,8 @@ class VariationalAutoEncoder(AbstractAgent):
                         num_samples=num_samples_per_class,
                         dataset_id=dataset_id,
                         label_type=DatasetLabelType.MULTI.value,
-                        labels=labels
+                        labels=labels,
+                        dataset_name=dataset_name
                     )
                     generated_samples.append(samples)
 

@@ -193,7 +193,7 @@ class HybridConditionEncoder(nn.Module):
 
 
         """
-        device = mask.device
+        device = labels.device
         encoder = encoder.to(device)
         if mask.any():
             indices = mask.nonzero().squeeze(-1).to(device)  # the output is [0, 2, 4] for the example above

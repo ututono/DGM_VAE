@@ -38,7 +38,7 @@ class Core():
         training_dataloader = DataLoader(
             training_data,
             batch_size=batch_size,
-            shuffle=True,
+            shuffle=True if train_sampler is None else False,
             num_workers=self._num_workers,
             collate_fn=collate_fn,
             sampler=train_sampler
@@ -46,7 +46,7 @@ class Core():
         evaluation_dataloader = DataLoader(
             evaluation_data,
             batch_size=batch_size,
-            shuffle=True,
+            shuffle=True if val_sampler is None else False,
             num_workers=self._num_workers,
             collate_fn=collate_fn,
             sampler=val_sampler
@@ -60,8 +60,8 @@ class Core():
             data,
             batch_size=batch_size,
             num_workers=self._num_workers,
-            collate_fn=None, 
-            sampler=None
+            collate_fn=collate_fn,
+            sampler=sampler
         )
         return self._agent.test(test_dataloader)
 
