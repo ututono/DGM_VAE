@@ -155,7 +155,7 @@ def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu
             # Fallback for traditional conditioning
             total_classes = sum(info['n_classes'] for info in conditioning_info['datasets_info'].values())
             model_kwargs['num_classes'] = total_classes
-            return ModelClass(**model_kwargs)
+        return ModelClass(**model_kwargs)
 
     network = _init_model_backbone(args, conditioning_info, img_shape, latent_dim)
 

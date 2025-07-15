@@ -81,8 +81,8 @@ class VariationalAutoEncoder(AbstractAgent):
                     x_hat, mu, logvar = self._model(x, labels=y)
             else:
                 # For Vanilla VAE, we only need the images
-                x, _ = batch_data
-                x: torch.Tensor = x.to(self._device)
+                x = batch_data['images'].to(self._device) if isinstance(batch_data, dict) else batch_data[0].to(
+                    self._device)
                 x_hat, mu, logvar = self._model(x)
 
             loss: torch.Tensor = loss_fn(x_hat, mu, logvar, x)
@@ -107,18 +107,18 @@ class VariationalAutoEncoder(AbstractAgent):
                     if isinstance(batch_data, dict):
                         x = batch_data['images'].to(self._device)
                         condition_kwargs = self._prepare_condition_kwargs(batch_data)
-                        xhat, mu, logvar = self._model(x, **condition_kwargs)
+                        x_hat, mu, logvar = self._model(x, **condition_kwargs)
                     else:
                         x, y = batch_data
                         x = x.to(self._device)
                         y = y.to(self._device).squeeze(dim=1)
-                        xhat, mu, logvar = self._model(x, labels=y)
+                        x_hat, mu, logvar = self._model(x, labels=y)
                 else:
-                    x, _ = batch_data
-                    x: torch.Tensor = x.to(self._device)
-                    xhat, mu, logvar = self._model(x)
+                    x = batch_data['images'].to(self._device) if isinstance(batch_data, dict) else batch_data[0].to(
+                        self._device)
+                    x_hat, mu, logvar = self._model(x)
 
-                loss: torch.Tensor = loss_fn(xhat, mu, logvar, x)
+                loss: torch.Tensor = loss_fn(x_hat, mu, logvar, x)
                 epoch_losses_val.append(loss.item())
                 total_samples += x.size(0)
 
@@ -192,22 +192,21 @@ class VariationalAutoEncoder(AbstractAgent):
                     if isinstance(batch_data, dict):
                         x = batch_data['images'].to(self._device)
                         condition_kwargs = self._prepare_condition_kwargs(batch_data)
-                        xhat, mu, logvar = self._model(x, **condition_kwargs)
+                        x_hat, mu, logvar = self._model(x, **condition_kwargs)
                     else:
                         x, y = batch_data
                         x = x.to(self._device)
                         y = y.to(self._device).squeeze(dim=1)
-                        xhat, mu, logvar = self._model(x, labels=y)
+                        x_hat, mu, logvar = self._model(x, labels=y)
                 else:
-                    x, _ = batch_data
-                    x: torch.Tensor = x.to(self._device)
-
-                    xhat, mu, logvar = self._model(x)
+                    x = batch_data['images'].to(self._device) if isinstance(batch_data, dict) else batch_data[0].to(
+                        self._device)
+                    x_hat, mu, logvar = self._model(x)
 
                 if batch_idx == 0:
-                    comparison = torch.cat([x[:n_samples], xhat[:n_samples]])
+                    comparison = torch.cat([x[:n_samples], x_hat[:n_samples]])
 
-                loss = torch.nn.functional.binary_cross_entropy(xhat, x, reduction='sum')
+                loss = torch.nn.functional.binary_cross_entropy(x_hat, x, reduction='sum')
                 test_losses.append(loss.item())
                 total_samples += x.size(0)
 
