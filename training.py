@@ -159,6 +159,9 @@ def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu
 
     network = _init_model_backbone(args, conditioning_info, img_shape, latent_dim)
 
+    total_params = sum(p.numel() for p in network.parameters() if p.requires_grad)
+    logger.info(f"Initialized model: {network.__class__.__name__} with {total_params} trainable parameters")
+
     agent = VariationalAutoEncoder(model=network, device=device)
 
     if checkpoint_path:
