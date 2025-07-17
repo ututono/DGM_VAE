@@ -19,7 +19,6 @@ class Arguments:
                                  help='Logging level (e.g., debug, info, warning, error)')
 
     def add_data_arguments(self):
-        self.parser.add_argument('--dataset_name', type=str, default='pathmnist', help='Input file path')
         self.parser.add_argument('--dataset_names', type=str, default='pathminst', help='Comma-separated list of dataset names to use, e.g., "pathmnist, chestmnist"')
         self.parser.add_argument('--dataset_weights', type=str, default=None, help='Comma-separated sampling weights for datasets (e.g., "1.0,0.5")')
         self.parser.add_argument('--image_size', type=int, default=28, help='The size of the crop to take from the original images')
@@ -27,6 +26,8 @@ class Arguments:
         self.parser.add_argument('--output', type=str, help='Output file path (directory) for saving results')
         self.parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
         self.parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training')
+        self.parser.add_argument('--pin_memory', action='store_true', help='Pin memory for DataLoader to speed up data transfer to GPU')
+        self.parser.add_argument('--prefetch_factor', type=int, default=2, help='Number of batches to prefetch in DataLoader')
 
     def add_model_arguments(self):
         self.parser.add_argument('--model', type=str, default='vae', help='Model type')

@@ -33,7 +33,9 @@ class Core():
             quiet=False,
             collate_fn=None,
             train_sampler=None,
-            val_sampler=None
+            val_sampler=None,
+            pin_memory=False,
+            prefetch_factor=2
     ):
         training_dataloader = DataLoader(
             training_data,
@@ -41,7 +43,9 @@ class Core():
             shuffle=True if train_sampler is None else False,
             num_workers=self._num_workers,
             collate_fn=collate_fn,
-            sampler=train_sampler
+            sampler=train_sampler,
+            pin_memory=pin_memory,
+            prefetch_factor=prefetch_factor
         )
         evaluation_dataloader = DataLoader(
             evaluation_data,
@@ -49,7 +53,9 @@ class Core():
             shuffle=True if val_sampler is None else False,
             num_workers=self._num_workers,
             collate_fn=collate_fn,
-            sampler=val_sampler
+            sampler=val_sampler,
+            pin_memory=pin_memory,
+            prefetch_factor=prefetch_factor
         ) if evaluation_data else None
         return self._agent.train(training_dataloader, evaluation_dataloader,
                                  self._optimizer, self._critetion,

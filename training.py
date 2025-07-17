@@ -311,7 +311,9 @@ def run_vae_experiment():
         epochs=args.epochs,
         train_sampler=train_sampler,
         val_sampler=val_sampler,
-        collate_fn=collate_conditioned_samples
+        collate_fn=collate_conditioned_samples,
+        prefetch_factor=args.prefetch_factor,
+        pin_memory=args.pin_memory,
     )
     logger.info("Training completed")
 
