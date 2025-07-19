@@ -1,5 +1,8 @@
+import shutil
+import tempfile
 from dataclasses import dataclass, asdict
 from os import PathLike
+from pathlib import Path
 
 from core.agent import AbstractAgent
 import torch
@@ -12,6 +15,9 @@ from core.loss_function import LossFunction
 from core.utils.metrics import Metrics
 from typing import List, Dict, Any
 
+import logging
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class MonoConditionConfig:
@@ -469,16 +475,60 @@ class VariationalAutoEncoder(AbstractAgent):
         """Load the model and its training records from a checkpoint file."""
         from core.utils.training_records import load_checkpoint
 
-        self.records_manager = load_checkpoint(
-            model=self._model,
-            load_dir=checkpoint_path,
-            current_args=current_args,
-            force_continue=force_continue
-        )
+        if self._should_try_download_checkpoint(checkpoint_path, current_args):
+            original_checkpoint_path = checkpoint_path
+            try:
+                # Download the checkpoint from remote storage
+                from core.utils.oss_storage_utils import get_storage_service
+                # Create temporary directory for extraction
+                temp_dir = Path(tempfile.mkdtemp(prefix='checkpoint_'))
 
-        self._model.to(self._device)
+                oss_service = get_storage_service(current_args.get('oss_type'))
+
+                extracted_checkpoint_dir = oss_service.download_checkpoint(
+                    checkpoint_identifier=checkpoint_path,
+                    extract_to=temp_dir
+                )
+                checkpoint_path = extracted_checkpoint_dir / 'model'
+
+                logger.info(f"Checkpoint downloaded and extracted to: {checkpoint_path}")
+
+            except Exception as e:
+                logger.error(f"Failed to download checkpoint from {checkpoint_path}: {e}")
+                if not Path(original_checkpoint_path).exists():
+                    logger.error(f"Checkpoint {original_checkpoint_path} does not exist locally either.")
+                else:
+                    logger.info(f"Falling back to load checkpoint locally from {original_checkpoint_path}")
+                    checkpoint_path = original_checkpoint_path
+
+        try:
+            self.records_manager = load_checkpoint(
+                model=self._model,
+                load_dir=checkpoint_path,
+                current_args=current_args,
+                force_continue=force_continue
+            )
+
+            self._model.to(self._device)
+        finally:
+            # Clean up temporary directory if created
+            use_cached_model = True  # Assuming we always use the cached model after download
+            if not use_cached_model:
+                if temp_dir and temp_dir.exists():
+                    shutil.rmtree(temp_dir)
+                    logger.debug(f"Cleaned up temporary directory: {temp_dir}")
 
         return self.records_manager
+
+    def _should_try_download_checkpoint(self, checkpoint_path: PathLike, args) -> bool:
+        """Check if the checkpoint path is a remote storage path."""
+        from core.utils.oss_storage_utils import get_storage_service
+        if not args or not hasattr(args, 'oss_type'):
+            return False
+        oss_service = get_storage_service(args.get('oss_type'))
+        if oss_service and oss_service.is_remote_path(checkpoint_path):
+            return True
+        return False
 
     def get_current_metrics_summary(self):
         """Get summary of current training metrics for final report."""

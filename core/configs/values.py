@@ -70,3 +70,21 @@ class DatasetLabelInfoNames(TypeEnum):
     """
     TYPE = "type"
     N_CLASSES = "n_classes"
+
+class CheckpointCompressionFormat(TypeEnum):
+    """
+    Enum for checkpoint compression formats.
+    """
+    GZ = "gz"
+    ZIP = "zip"
+
+
+class OSSConfigKeys(TypeEnum):
+    """
+    Enum for OSS configuration keys.
+    """
+    ACCESS_KEY = "ACCESS_KEY_ID"
+    SECRET_KEY = "SECRET_ACCESS_KEY"
+    ENDPOINT = "ENDPOINT_URL"
+    BUCKET_NAME = "BUCKET_NAME"
+    REGION_NAME = "REGION"
