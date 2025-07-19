@@ -67,8 +67,6 @@ class Arguments:
                                  help='MLflow run name for tracking experiments')
 
     def add_oss_arguments(self):
-        self.parser.add_argument('--oss_type', type=str, default='r2', choices=['r2'],
-                                 help='Type of OSS service to use (e.g., Cloudflare R2, AWS S3)')
         self.parser.add_argument('--oss_endpoint_url', type=str, default=None, help='Endpoint URL for the OSS service')
         self.parser.add_argument('--oss_access_key', type=str, default=None, help='Access key for the OSS service')
         self.parser.add_argument('--oss_secret_key', type=str, default=None, help='Secret key for the OSS service')
@@ -85,6 +83,8 @@ class Arguments:
                                  help='Create several certain figures for the project report')
         self.parser.add_argument('--enable_upload_model', action='store_true',
                                  help='Enable uploading the model to the cloud storage after training')
+        self.parser.add_argument('--oss_type', type=str, default='r2', choices=['r2'],
+                                 help='Type of OSS service to use (e.g., Cloudflare R2, AWS S3)')
 
     def add_all_arguments(self):
         """

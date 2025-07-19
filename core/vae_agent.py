@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass, asdict
 import shutil
 import tempfile
@@ -9,7 +10,8 @@ import torch
 
 from torch.utils.data import DataLoader
 
-from core.configs.values import VAEModelType, DatasetLabelType, DatasetLabelInfoNames
+from core.configs.values import VAEModelType, DatasetLabelType, DatasetLabelInfoNames, OSSURLType
+from core.models import get_model
 from core.optimizer import Optimizer
 from core.loss_function import LossFunction
 from core.utils.metrics import Metrics
@@ -471,35 +473,99 @@ class VariationalAutoEncoder(AbstractAgent):
 
         return self.records_manager
 
+    def _download_checkpoint_from_remote(self, checkpoint_path: str, path_type: str, args) -> Path:
+        from core.utils.oss_storage_utils import R2StorageService, get_storage_service
+
+        temp_dir = Path(tempfile.mkdtemp(prefix='checkpoint_'))
+
+        StorageService = get_storage_service(getattr(args, 'oss_type'))
+
+        try:
+            if path_type == OSSURLType.SIGNED:
+                # Direct download using signed URL
+                logger.info("Downloading checkpoint using signed URL...")
+                extracted_checkpoint_dir = StorageService.download_with_signed_url(
+                    signed_url=checkpoint_path,
+                    extract_to=temp_dir
+                )
+
+            elif path_type == "checkpoint_id":
+                api_token = getattr(args, 'checkpoint_api_token', None) or os.getenv('CHECKPOINT_API_TOKEN')
+                auth_endpoint = getattr(args, 'checkpoint_auth_endpoint', None) or os.getenv('CHECKPOINT_AUTH_ENDPOINT')
+
+                if api_token and auth_endpoint:
+                    # TODO: Implement API token-based download
+                    logger.info("API token authentication will be implemented in future version")
+                    signed_url = self._get_signed_url_from_api(checkpoint_path, api_token, auth_endpoint)
+                    extracted_checkpoint_dir = R2StorageService.download_with_signed_url(
+                        signed_url=signed_url,
+                        extract_to=temp_dir
+                    )
+                else:
+                    # Fall back to direct R2 access if user has credentials
+                    if hasattr(args, 'oss_type') and args.oss_type:
+                        logger.warning("No API token found, attempting direct R2 access...")
+                        StorageService = get_storage_service(args.oss_type)
+                        oss_service = StorageService(
+                            endpoint_url=getattr(args, 'oss_endpoint_url', None),
+                            access_key=getattr(args, 'oss_access_key', None),
+                            secret_key=getattr(args, 'oss_secret_key', None),
+                            bucket_name=getattr(args, 'oss_bucket_name', None),
+                            region_name=getattr(args, 'oss_region_name', 'auto')
+                        )
+                        extracted_checkpoint_dir = oss_service.download_checkpoint(
+                            checkpoint_identifier=checkpoint_path,
+                            extract_to=temp_dir
+                        )
+                    else:
+                        raise ValueError(
+                            f"Cannot download checkpoint '{checkpoint_path}'. "
+                            "Please provide either:\n"
+                            "1. A signed URL, or\n"
+                            "2. API token configuration (CHECKPOINT_API_TOKEN + CHECKPOINT_AUTH_ENDPOINT), or\n"
+                            "3. Full R2 credentials for direct access"
+                        )
+            else:
+                raise ValueError(f"Unsupported path type: {path_type}")
+
+            checkpoint_model_dir = extracted_checkpoint_dir / 'model'
+            if not checkpoint_model_dir.exists():
+                raise FileNotFoundError(f"Model directory not found in checkpoint: {extracted_checkpoint_dir}")
+
+            return checkpoint_model_dir
+
+        except Exception as e:
+            # Clean up on failure
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir)
+            raise e
+
     def load_checkpoint(self, checkpoint_path: PathLike, current_args, force_continue: bool = False):
         """Load the model and its training records from a checkpoint file."""
         from core.utils.training_records import load_checkpoint
-
-        if self._should_try_download_checkpoint(checkpoint_path, current_args):
-            original_checkpoint_path = checkpoint_path
+        original_checkpoint_path = checkpoint_path
+        temp_dir = None
+        should_download, path_type = self._should_try_download_checkpoint(checkpoint_path, current_args)
+        breakpoint()
+        if should_download:
             try:
-                # Download the checkpoint from remote storage
-                from core.utils.oss_storage_utils import get_storage_service
-                # Create temporary directory for extraction
-                temp_dir = Path(tempfile.mkdtemp(prefix='checkpoint_'))
-
-                oss_service = get_storage_service(current_args.get('oss_type'))
-
-                extracted_checkpoint_dir = oss_service.download_checkpoint(
-                    checkpoint_identifier=checkpoint_path,
-                    extract_to=temp_dir
+                logger.info(f"Attempting to download remote checkpoint: {checkpoint_path}")
+                checkpoint_path = self._download_checkpoint_from_remote(
+                    checkpoint_path=str(checkpoint_path),
+                    path_type=path_type,
+                    args=current_args
                 )
-                checkpoint_path = extracted_checkpoint_dir / 'model'
-
-                logger.info(f"Checkpoint downloaded and extracted to: {checkpoint_path}")
+                temp_dir = checkpoint_path.parent.parent  # Store temp dir for cleanup
 
             except Exception as e:
-                logger.error(f"Failed to download checkpoint from {checkpoint_path}: {e}")
-                if not Path(original_checkpoint_path).exists():
-                    logger.error(f"Checkpoint {original_checkpoint_path} does not exist locally either.")
-                else:
-                    logger.info(f"Falling back to load checkpoint locally from {original_checkpoint_path}")
+                logger.error(f"Failed to download checkpoint from {original_checkpoint_path}: {e}")
+
+                # Try local fallback if original path exists locally
+                if Path(original_checkpoint_path).exists():
+                    logger.info(f"Falling back to local checkpoint: {original_checkpoint_path}")
                     checkpoint_path = original_checkpoint_path
+                else:
+                    raise e
 
         try:
             self.records_manager = load_checkpoint(
@@ -520,15 +586,15 @@ class VariationalAutoEncoder(AbstractAgent):
 
         return self.records_manager
 
-    def _should_try_download_checkpoint(self, checkpoint_path: PathLike, args) -> bool:
+    @staticmethod
+    def _should_try_download_checkpoint(checkpoint_path: PathLike, args) -> (bool, str):
         """Check if the checkpoint path is a remote storage path."""
         from core.utils.oss_storage_utils import get_storage_service
         if not args or not hasattr(args, 'oss_type'):
             return False
-        oss_service = get_storage_service(args.get('oss_type'))
-        if oss_service and oss_service.is_remote_path(checkpoint_path):
-            return True
-        return False
+        StorageService = get_storage_service(getattr(args, 'oss_type'))
+        should_download, url_type = StorageService.is_remote_path_or_checkpoint_id(checkpoint_path)
+        return should_download, url_type
 
     def get_current_metrics_summary(self):
         """Get summary of current training metrics for final report."""
@@ -554,3 +620,72 @@ class VariationalAutoEncoder(AbstractAgent):
     def use_hybrid_conditioning(self) -> bool:
         """Check if the model uses hybrid conditioning."""
         return self._model.use_hybrid_conditioning if hasattr(self._model, 'use_hybrid_conditioning') else False
+
+
+def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu", args=None,
+                        conditioning_info:dict = None):
+
+    network = init_model_backbone(args, conditioning_info, img_shape, latent_dim)
+
+    total_params = sum(p.numel() for p in network.parameters() if p.requires_grad)
+    logger.info(f"Initialized model: {network.__class__.__name__} with {total_params} trainable parameters")
+
+    agent = VariationalAutoEncoder(model=network, device=device)
+
+    if checkpoint_path:
+        logger.info(f"Loading checkpoint from {args.checkpoint_path}")
+        # try: # TODO uncomment when checkpoint loading is stable
+        records_manager = agent.load_checkpoint(
+            checkpoint_path=args.checkpoint_path,
+            current_args=args,
+            force_continue=getattr(args, 'force_continue', False)
+        )
+
+        # Get info about previous training
+        if records_manager.records:
+            latest_record = records_manager.get_latest_record()
+            logger.info(f"Loaded model from training session {latest_record.train_count}")
+            logger.info(f"Previous training timestamp: {latest_record.timestamp}")
+
+            if latest_record.metrics:
+                last_metrics = latest_record.metrics[-1]
+                logger.info(f"Previous best val loss: {last_metrics.get('best_val_loss', 'N/A')}")
+
+        # except ValueError as e:
+        #     logger.error(f"Failed to load checkpoint: {e}")
+        #     return
+        # except Exception as e:
+        #     logger.error(f"Error loading checkpoint: {e}")
+        #     return
+
+        logger.info(f"Model parameters loaded from {checkpoint_path}")
+    else:
+        logger.info(f"Checkpoint path {checkpoint_path} does not exist. Starting with a new model.")
+
+    return agent
+
+
+def init_model_backbone(args, conditioning_info, img_shape, latent_dim):
+    ModelClass = get_model(args.model)
+
+    model_kwargs = {
+        'img_shape': img_shape,
+        'latent_dim': latent_dim,
+        'model_type': args.model,
+    }
+
+    # Add hybrid conditioning parameters
+    if args.model == VAEModelType.CVAE and conditioning_info:
+        model_kwargs.update({
+            'num_datasets': conditioning_info['num_datasets'],
+            'label_type_info': conditioning_info['label_type_info'],
+            'dataset_embed_dim': 16,
+            'class_embed_dim': 16,
+            'use_hybrid_conditioning': True,
+            'condition_dim': args.condition_dim,
+        })
+
+        # Fallback for traditional conditioning
+        total_classes = sum(info['n_classes'] for info in conditioning_info['datasets_info'].values())
+        model_kwargs['num_classes'] = total_classes
+    return ModelClass(**model_kwargs)
