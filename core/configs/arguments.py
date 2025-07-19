@@ -34,6 +34,8 @@ class Arguments:
         self.parser.add_argument('--output', type=str, help='Output file path (directory) for saving results')
         self.parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
         self.parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training')
+        self.parser.add_argument('--pin_memory', action='store_true', help='Pin memory for DataLoader to speed up data transfer to GPU')
+        self.parser.add_argument('--prefetch_factor', type=int, default=2, help='Number of batches to prefetch in DataLoader')
 
     def add_model_arguments(self):
         self.parser.add_argument('--model', type=str, default='vae', help='Model type')
