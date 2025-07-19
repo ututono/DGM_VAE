@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from core.configs.arguments import get_arguments, print_and_save_arguments
 from core.configs.logging_config import setup_ml_logging_and_mlflow
 from core.configs.values import DataSplitType, VAEModelType
-from core.data.hybrid_dataset import MultiDatasetLoader, collate_conditioned_samples
+from core.data.hybrid_dataset import MultiDatasetLoader, collate_conditioned_samples, init_dataloader
 from core.utils.general import set_random_seed, root_path, symlink_force, apply_smoke_test_settings
 
 sys.path.insert(0, '../')
@@ -18,7 +18,7 @@ from core.core import Core
 from core.loss_function import LossFunction
 from core.optimizer import Optimizer
 from core.data.dataset import load_medmnist_data
-from core.vae_agent import VariationalAutoEncoder
+from core.vae_agent import init_and_load_model
 from core.utils.saving import save_metrics, save_model
 from core.visualization.plotting import plot_data
 from core.models import VanillaVAE, get_model
@@ -61,17 +61,16 @@ def generate_hybrid_samples_and_reconstruct(
         agent,
         core: Core,
         multi_loader: MultiDatasetLoader,
-        test_datasets:dict,
+        test_datasets: dict,
         artifacts_dir,
-        mixed_dataset = None,
-        sampler = None
+        mixed_dataset=None,
+        sampler=None
 ):
     """Generate samples for hybrid label datasets"""
 
     if agent.use_hybrid_conditioning:
         for dataset_id, dataset_name in enumerate(multi_loader.dataset_names):
             logger.info(f"Generating samples for {dataset_name}")
-
 
             samples = agent.generate_dataset_specific_samples(
                 dataset_id=dataset_id,
@@ -128,99 +127,6 @@ def generate_hybrid_samples_and_reconstruct(
         save_image(combined_comparison, combined_save_path, nrow=8, normalize=True)
         logger.info(f"Combined reconstructed images saved to {combined_save_path}")
 
-def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu", args=None,
-                        conditioning_info:dict = None):
-
-
-    def _init_model_backbone(args, conditioning_info, img_shape, latent_dim):
-        ModelClass = get_model(args.model)
-
-        model_kwargs = {
-            'img_shape': img_shape,
-            'latent_dim': latent_dim,
-            'model_type': args.model,
-        }
-
-        # Add hybrid conditioning parameters
-        if args.model == VAEModelType.CVAE and conditioning_info:
-            model_kwargs.update({
-                'num_datasets': conditioning_info['num_datasets'],
-                'label_type_info': conditioning_info['label_type_info'],
-                'dataset_embed_dim': 16,
-                'class_embed_dim': 16,
-                'use_hybrid_conditioning': True,
-                'condition_dim': args.condition_dim,
-            })
-
-            # Fallback for traditional conditioning
-            total_classes = sum(info['n_classes'] for info in conditioning_info['datasets_info'].values())
-            model_kwargs['num_classes'] = total_classes
-        return ModelClass(**model_kwargs)
-
-    network = _init_model_backbone(args, conditioning_info, img_shape, latent_dim)
-
-    total_params = sum(p.numel() for p in network.parameters() if p.requires_grad)
-    logger.info(f"Initialized model: {network.__class__.__name__} with {total_params} trainable parameters")
-
-    agent = VariationalAutoEncoder(model=network, device=device)
-
-    if checkpoint_path:
-        checkpoint_path = Path(checkpoint_path)
-        if checkpoint_path.exists():
-            logger.info(f"Loading checkpoint from {args.checkpoint_path}")
-            try:
-                records_manager = agent.load_checkpoint(
-                    checkpoint_path=args.checkpoint_path,
-                    current_args=args,
-                    force_continue=getattr(args, 'force_continue', False)
-                )
-
-                # Get info about previous training
-                if records_manager.records:
-                    latest_record = records_manager.get_latest_record()
-                    logger.info(f"Loaded model from training session {latest_record.train_count}")
-                    logger.info(f"Previous training timestamp: {latest_record.timestamp}")
-
-                    if latest_record.metrics:
-                        last_metrics = latest_record.metrics[-1]
-                        logger.info(f"Previous best val loss: {last_metrics.get('best_val_loss', 'N/A')}")
-
-            except ValueError as e:
-                logger.error(f"Failed to load checkpoint: {e}")
-                return
-            except Exception as e:
-                logger.error(f"Error loading checkpoint: {e}")
-                return
-
-            print(f"Model parameters loaded from {checkpoint_path}")
-        else:
-            print(f"Checkpoint path {checkpoint_path} does not exist. Starting with a new model.")
-
-    return agent
-
-
-def _init_model_backbone(args, conditioning_info, img_shape, latent_dim):
-    ModelClass = get_model(args.model)
-    model_kwargs = {
-        'img_shape': img_shape,
-        'latent_dim': latent_dim,
-        'model_type': args.model,
-    }
-    # Add hybrid conditioning parameters
-    if ModelClass.__name__ == 'ConditionalVAE' and conditioning_info:
-        model_kwargs.update({
-            'num_datasets': conditioning_info['num_datasets'],
-            'label_type_info': conditioning_info['label_type_info'],
-            'dataset_embed_dim': 16,
-            'class_embed_dim': 16,
-            'use_hybrid_conditioning': True,
-            'condition_dim': args.condition_dim,
-        })
-
-        # Fallback for traditional conditioning
-        total_classes = sum(info['n_classes'] for info in conditioning_info['datasets_info'].values())
-        model_kwargs['num_classes'] = total_classes
-
 
 def setup_experiments():
     """
@@ -257,34 +163,8 @@ def run_vae_experiment():
         artifacts_dir.mkdir(parents=True, exist_ok=True)
         print_and_save_arguments(args, save_dir=artifacts_dir)
 
-    # Load MedMNIST data
-    hybrid_dataloader = MultiDatasetLoader(
-        dataset_names=args.dataset_names,
-        image_size=args.image_size,
-        download=True,
-        dataset_weights=args.dataset_weights,
-    )
-
-    conditioning_info = hybrid_dataloader.conditioning_info
-    logger.info(f"Conditioning info: {conditioning_info}")
-
-    # Get mixed dataset
-    train_mixed, train_sampler = hybrid_dataloader.get_combined_dataset(DataSplitType.TRAIN.value)
-    val_mixed, val_sampler = hybrid_dataloader.get_combined_dataset(DataSplitType.TRAIN.value)
-    test_mixed, test_sampler = hybrid_dataloader.get_combined_dataset(DataSplitType.TEST.value)
-
-    # Get individual test datasets
-    test_datasets = {}
-    for dataset_name in args.dataset_names:
-        test_datasets[dataset_name] = hybrid_dataloader.get_single_dataset(dataset_name, DataSplitType.TEST.value)
-
-    if args.smoke_test:
-        logger.info("Running smoke test with minimal data")
-
-        train_mixed, val_mixed, test_mixed = apply_smoke_test_settings(
-            train_ds=train_mixed, val_ds=val_mixed, test_ds=test_mixed, args=args
-        )
-        train_sampler = val_sampler = None
+    conditioning_info, hybrid_dataloader, test_datasets, train_mixed, train_sampler, val_mixed, val_sampler, test_datasets \
+        = init_dataloader(args)
 
     # Initialize model
     img_shape = (conditioning_info['unified_channels'], args.image_size, args.image_size)

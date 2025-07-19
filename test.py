@@ -3,6 +3,7 @@ import sys
 from os import PathLike
 from pathlib import Path
 
+from core.data.hybrid_dataset import init_dataloader
 from core.models import VanillaVAE, get_model
 
 sys.path.insert(0, "../")
@@ -10,7 +11,7 @@ sys.path.insert(0, "../")
 from typing import Tuple, Optional
 
 from core.core import Core
-from core.vae_agent import VariationalAutoEncoder
+from core.vae_agent import VariationalAutoEncoder, init_and_load_model
 
 import torch
 from torchvision.utils import save_image
@@ -25,54 +26,6 @@ import rootutils
 root = rootutils.setup_root(__file__, dotenv=True, pythonpath=True, cwd=False)
 
 logger = logging.getLogger(__name__)
-
-
-def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu", args=None,
-                        n_classes: Optional[int] = None):
-    ModelClass = get_model(args.model)
-
-    network = ModelClass(
-        img_shape=img_shape,
-        latent_dim=latent_dim,
-        num_classes=n_classes,
-        condition_dim=args.condition_dim,
-        model_type=args.model,
-    )
-
-    agent = VariationalAutoEncoder(model=network, device=device)
-
-    if checkpoint_path:
-        checkpoint_path = Path(checkpoint_path)
-        if checkpoint_path.exists():
-            logger.info(f"Loading checkpoint from {args.checkpoint_path}")
-            try:
-                records_manager = agent.load_checkpoint(
-                    checkpoint_path=args.checkpoint_path,
-                    current_args=args,
-                    force_continue=getattr(args, 'force_continue', False)
-                )
-                # Get info about previous training
-                if records_manager.records:
-                    latest_record = records_manager.get_latest_record()
-                    logger.info(f"Loaded model from training session {latest_record.train_count}")
-                    logger.info(f"Previous training timestamp: {latest_record.timestamp}")
-
-                    if latest_record.metrics:
-                        last_metrics = latest_record.metrics
-                        logger.info(f"Previous best val loss: {last_metrics.get('best_val_loss', 'N/A')}")
-
-            except ValueError as e:
-                logger.error(f"Failed to load checkpoint: {e}")
-                return
-            except Exception as e:
-                logger.error(f"Error loading checkpoint: {e}")
-                return
-
-            print(f"Model parameters loaded from {checkpoint_path}")
-        else:
-            print(f"Checkpoint path {checkpoint_path} does not exist. Starting with a new model.")
-
-    return agent
 
 
 def generate_samples(agent, num_samples=16, save_path: PathLike = "generated_samples.png"):
@@ -119,23 +72,12 @@ def run_evaluation():
         artifacts_dir.mkdir(parents=True, exist_ok=True)
         print_and_save_arguments(args, save_dir=artifacts_dir)
 
-    # Load MedMNIST data
-    train_ds, val_ds, test_ds, dataset_info = load_medmnist_data(
-        dataset_name=args.dataset_name,
-        download=True,
-        image_size=args.image_size,
-        custom_transform=None,
-        as_rgb=args.as_rgb,
-    )
-
-    train_ds, val_ds, test_ds = apply_smoke_test_settings(
-        train_ds=train_ds, val_ds=val_ds, test_ds=test_ds, args=args
-    )
+    conditioning_info, hybrid_dataloader, test_datasets, train_mixed, train_sampler, val_mixed, val_sampler, test_datasets\
+        = init_dataloader(args)
 
     # Initialize model
-    img_shape = (dataset_info['n_channels'], args.image_size, args.image_size)
+    img_shape = (conditioning_info['unified_channels'], args.image_size, args.image_size)
     latent_dim = args.latent_dim
-    n_classes = len(dataset_info['label']) if 'label' in dataset_info else None
     logger.info(f"Model initialized with image shape {img_shape} and latent dimension {latent_dim}")
 
     agent = init_and_load_model(
@@ -144,7 +86,7 @@ def run_evaluation():
         checkpoint_path=args.checkpoint_path,
         device=device,
         args=args,
-        n_classes=n_classes
+        conditioning_info=conditioning_info
     )
 
     core = Core(agent=agent, optimizer=None, loss_function=None, num_workers=args.num_workers)

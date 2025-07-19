@@ -1,5 +1,7 @@
+import logging
 from dataclasses import dataclass, asdict
 from os import PathLike
+from pathlib import Path
 
 from core.agent import AbstractAgent
 import torch
@@ -7,6 +9,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from core.configs.values import VAEModelType, DatasetLabelType, DatasetLabelInfoNames
+from core.models import get_model
 from core.optimizer import Optimizer
 from core.loss_function import LossFunction
 from core.utils.metrics import Metrics
@@ -44,6 +47,7 @@ class ConditionConfig:
 TYPE_NAME = DatasetLabelInfoNames.TYPE.value
 N_CLASS_NAME = DatasetLabelInfoNames.N_CLASSES.value
 
+logger = logging.getLogger(__name__)
 
 class VariationalAutoEncoder(AbstractAgent):
     def __init__(self, model, device):
@@ -504,3 +508,74 @@ class VariationalAutoEncoder(AbstractAgent):
     def use_hybrid_conditioning(self) -> bool:
         """Check if the model uses hybrid conditioning."""
         return self._model.use_hybrid_conditioning if hasattr(self._model, 'use_hybrid_conditioning') else False
+
+
+def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu", args=None,
+                        conditioning_info:dict = None):
+
+    network = init_model_backbone(args, conditioning_info, img_shape, latent_dim)
+
+    total_params = sum(p.numel() for p in network.parameters() if p.requires_grad)
+    logger.info(f"Initialized model: {network.__class__.__name__} with {total_params} trainable parameters")
+
+    agent = VariationalAutoEncoder(model=network, device=device)
+
+    if checkpoint_path:
+        checkpoint_path = Path(checkpoint_path)
+        if checkpoint_path.exists():
+            logger.info(f"Loading checkpoint from {args.checkpoint_path}")
+            try:
+                records_manager = agent.load_checkpoint(
+                    checkpoint_path=args.checkpoint_path,
+                    current_args=args,
+                    force_continue=getattr(args, 'force_continue', False)
+                )
+
+                # Get info about previous training
+                if records_manager.records:
+                    latest_record = records_manager.get_latest_record()
+                    logger.info(f"Loaded model from training session {latest_record.train_count}")
+                    logger.info(f"Previous training timestamp: {latest_record.timestamp}")
+
+                    if latest_record.metrics:
+                        last_metrics = latest_record.metrics[-1]
+                        logger.info(f"Previous best val loss: {last_metrics.get('best_val_loss', 'N/A')}")
+
+            except ValueError as e:
+                logger.error(f"Failed to load checkpoint: {e}")
+                return
+            except Exception as e:
+                logger.error(f"Error loading checkpoint: {e}")
+                return
+
+            print(f"Model parameters loaded from {checkpoint_path}")
+        else:
+            print(f"Checkpoint path {checkpoint_path} does not exist. Starting with a new model.")
+
+    return agent
+
+
+def init_model_backbone(args, conditioning_info, img_shape, latent_dim):
+    ModelClass = get_model(args.model)
+
+    model_kwargs = {
+        'img_shape': img_shape,
+        'latent_dim': latent_dim,
+        'model_type': args.model,
+    }
+
+    # Add hybrid conditioning parameters
+    if args.model == VAEModelType.CVAE and conditioning_info:
+        model_kwargs.update({
+            'num_datasets': conditioning_info['num_datasets'],
+            'label_type_info': conditioning_info['label_type_info'],
+            'dataset_embed_dim': 16,
+            'class_embed_dim': 16,
+            'use_hybrid_conditioning': True,
+            'condition_dim': args.condition_dim,
+        })
+
+        # Fallback for traditional conditioning
+        total_classes = sum(info['n_classes'] for info in conditioning_info['datasets_info'].values())
+        model_kwargs['num_classes'] = total_classes
+    return ModelClass(**model_kwargs)
