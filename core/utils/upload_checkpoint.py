@@ -6,10 +6,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from pytimeparse import parse
 from core.configs.values import OSSConfigKeys as OSK
 from core.utils.oss_storage_utils import get_storage_service, is_oss_enabled
 
 # Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s')
 logger = logging.getLogger(__name__)
 
 
@@ -129,6 +131,21 @@ def get_checkpoint_metadata(checkpoint_path: Path, timestamp: str) -> dict:
 
     return metadata
 
+def convert_period_to_seconds(period: str) -> int:
+    """
+    Convert a time period string to seconds.
+
+    """
+    try:
+        seconds = parse(period)
+        if seconds is None:
+            raise ValueError("Invalid time period format")
+        return seconds
+    except Exception as e:
+        logger.error(f"Failed to parse time period '{period}': {e}")
+        return 3600  # Default to 1 hour if parsing fails
+
+
 
 def upload_checkpoint(
         checkpoint_path: str,
@@ -223,21 +240,28 @@ def upload_checkpoint(
     # Perform upload
     try:
         logger.info("Starting upload to R2...")
-        r2_key = oss_service.upload_checkpoint(
+        remote_key = oss_service.upload_checkpoint(
             local_checkpoint_dir=checkpoint_path,
             timestamp=timestamp,
             metadata=metadata
         )
 
+        # create pre-signed URL if enabled
+        expires_in = convert_period_to_seconds(args.expires_in)
+        presigned_url = None
+        if args.enable_presigned:
+            presigned_url = oss_service.generate_signed_download_url(
+                checkpoint_identifier=remote_key,
+                expires_in=expires_in,
+            )
+
         logger.info("=" * 60)
         logger.info("UPLOAD SUCCESSFUL")
         logger.info("=" * 60)
-        logger.info(f"R2 key: {r2_key}")
+        logger.info(f"R2 key: {remote_key}")
+        logger.info(f"Presigned URL: {presigned_url if presigned_url else 'Not generated'}")
         logger.info(f"Timestamp: {timestamp}")
         logger.info("=" * 60)
-        logger.info("\nYour team can now access this checkpoint using:")
-        logger.info(f"  python test.py --checkpoint_path {timestamp}")
-        logger.info(f"  python test.py --checkpoint_path latest  # if this is the newest")
 
         return True
 
@@ -270,6 +294,10 @@ def argparse_args():
                             help='List available remote checkpoints in R2')
     arg_parser.add_argument('--oss_type', type=str, default='r2',
                             help='Type of OSS storage service (default: r2)')
+    arg_parser.add_argument('--expires_in', type=str, default='1h',
+                            help='Expiration time for pre-signed URLs (default: 1 hour, format: 1h, 30m, etc.)')
+    arg_parser.add_argument('--enable_presigned', action='store_true',
+                            help='Enable generation of pre-signed URLs for download')
 
     args = arg_parser.parse_args()
 
@@ -299,6 +327,7 @@ def main():
     if args.list_local:
         return
 
+    print(f"{convert_period_to_seconds(args.expires_in)} seconds")
     upload_checkpoint(
         checkpoint_path=args.checkpoint_path,
         custom_timestamp=args.timestamp,

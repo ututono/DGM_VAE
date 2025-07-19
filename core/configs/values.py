@@ -88,3 +88,13 @@ class OSSConfigKeys(TypeEnum):
     ENDPOINT = "ENDPOINT_URL"
     BUCKET_NAME = "BUCKET_NAME"
     REGION_NAME = "REGION"
+
+
+class OSSURLType(TypeEnum):
+    """
+    Enum for OSS URL types.
+    """
+    PUBLIC = "public"
+    PRIVATE = "private"
+    SIGNED = "signed_url"
+    CKPT = "checkpoint_id"
