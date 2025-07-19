@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from core.configs.arguments import get_arguments, print_and_save_arguments
 from core.configs.logging_config import setup_ml_logging_and_mlflow
 from core.configs.values import DataSplitType, VAEModelType
-from core.data.hybrid_dataset import MultiDatasetLoader, collate_conditioned_samples, init_dataloader
+from core.data.hybrid_dataset import MultiDatasetLoader, collate_conditioned_samples
 from core.utils.general import set_random_seed, root_path, symlink_force, apply_smoke_test_settings
 
 sys.path.insert(0, '../')
@@ -18,7 +18,7 @@ from core.core import Core
 from core.loss_function import LossFunction
 from core.optimizer import Optimizer
 from core.data.dataset import load_medmnist_data
-from core.vae_agent import init_and_load_model
+from core.vae_agent import VariationalAutoEncoder
 from core.utils.saving import save_metrics, save_model
 from core.visualization.plotting import plot_data
 from core.models import VanillaVAE, get_model
@@ -61,16 +61,17 @@ def generate_hybrid_samples_and_reconstruct(
         agent,
         core: Core,
         multi_loader: MultiDatasetLoader,
-        test_datasets: dict,
+        test_datasets:dict,
         artifacts_dir,
-        mixed_dataset=None,
-        sampler=None
+        mixed_dataset = None,
+        sampler = None
 ):
     """Generate samples for hybrid label datasets"""
 
     if agent.use_hybrid_conditioning:
         for dataset_id, dataset_name in enumerate(multi_loader.dataset_names):
             logger.info(f"Generating samples for {dataset_name}")
+
 
             samples = agent.generate_dataset_specific_samples(
                 dataset_id=dataset_id,
