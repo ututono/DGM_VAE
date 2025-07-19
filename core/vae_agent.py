@@ -1,6 +1,6 @@
+from dataclasses import dataclass, asdict
 import shutil
 import tempfile
-from dataclasses import dataclass, asdict
 from os import PathLike
 from pathlib import Path
 

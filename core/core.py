@@ -95,3 +95,6 @@ class Core():
 
             data_loader = DataLoader(data, batch_size=64, shuffle=True, num_workers=self._num_workers) if data else None
             generate_cvae_report(agent, artifacts_dir=artifacts_dir, dataset_info=dataset_info, data_loader=data_loader)
+
+    def generate_hybrid_visual_report(self):
+        pass

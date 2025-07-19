@@ -8,6 +8,7 @@ import torch.nn.functional as F
 
 from core.data.dataset import load_medmnist_data
 from core.configs.values import DataSplitType, DatasetLabelType, DatasetLabelInfoNames as DataLabelInfo
+from core.utils.general import apply_smoke_test_settings
 
 logger = logging.getLogger(__name__)
 
@@ -294,4 +295,40 @@ def collate_conditioned_samples(batch: List[DatasetConditionedSample]) -> Dict[s
         'multi_mask': multi_mask,
         **labels_dict
     }
+
+
+def init_dataloader(args):
+    """
+    Initialize the MedMNIST dataloader with the specified arguments.
+    :param args:
+    :return:
+    - train_mixed: mixed all training datasets defined in args.dataset_names
+    - test_datasets: dict of individual test datasets
+
+    """
+    # Load MedMNIST data
+    hybrid_dataloader = MultiDatasetLoader(
+        dataset_names=args.dataset_names,
+        image_size=args.image_size,
+        download=True,
+        dataset_weights=args.dataset_weights,
+    )
+    conditioning_info = hybrid_dataloader.conditioning_info
+    logger.info(f"Conditioning info: {conditioning_info}")
+    # Get mixed dataset
+    train_mixed, train_sampler = hybrid_dataloader.get_combined_dataset(DataSplitType.TRAIN.value)
+    val_mixed, val_sampler = hybrid_dataloader.get_combined_dataset(DataSplitType.TRAIN.value)
+    test_mixed, test_sampler = hybrid_dataloader.get_combined_dataset(DataSplitType.TEST.value)
+    # Get individual test datasets
+    test_datasets = {}
+    for dataset_name in args.dataset_names:
+        test_datasets[dataset_name] = hybrid_dataloader.get_single_dataset(dataset_name, DataSplitType.TEST.value)
+    if args.smoke_test:
+        logger.info("Running smoke test with minimal data")
+
+        train_mixed, val_mixed, test_mixed = apply_smoke_test_settings(
+            train_ds=train_mixed, val_ds=val_mixed, test_ds=test_mixed, args=args
+        )
+        train_sampler = val_sampler = None
+    return conditioning_info, hybrid_dataloader, test_datasets, train_mixed, train_sampler, val_mixed, val_sampler, test_datasets
 
