@@ -546,7 +546,6 @@ class VariationalAutoEncoder(AbstractAgent):
         original_checkpoint_path = checkpoint_path
         temp_dir = None
         should_download, path_type = self._should_try_download_checkpoint(checkpoint_path, current_args)
-        breakpoint()
         if should_download:
             try:
                 logger.info(f"Attempting to download remote checkpoint: {checkpoint_path}")
@@ -634,29 +633,32 @@ def init_and_load_model(img_shape, latent_dim, checkpoint_path=None, device="cpu
 
     if checkpoint_path:
         logger.info(f"Loading checkpoint from {args.checkpoint_path}")
-        # try: # TODO uncomment when checkpoint loading is stable
-        records_manager = agent.load_checkpoint(
-            checkpoint_path=args.checkpoint_path,
-            current_args=args,
-            force_continue=getattr(args, 'force_continue', False)
-        )
+        try:
+            records_manager = agent.load_checkpoint(
+                checkpoint_path=args.checkpoint_path,
+                current_args=args,
+                force_continue=getattr(args, 'force_continue', False)
+            )
 
-        # Get info about previous training
-        if records_manager.records:
-            latest_record = records_manager.get_latest_record()
-            logger.info(f"Loaded model from training session {latest_record.train_count}")
-            logger.info(f"Previous training timestamp: {latest_record.timestamp}")
+            # Get info about previous training
+            if records_manager.records:
+                latest_record = records_manager.get_latest_record()
+                logger.info(f"Loaded model from training session {latest_record.train_count}")
+                logger.info(f"Previous training timestamp: {latest_record.timestamp}")
 
-            if latest_record.metrics:
-                last_metrics = latest_record.metrics[-1]
-                logger.info(f"Previous best val loss: {last_metrics.get('best_val_loss', 'N/A')}")
+                if latest_record.metrics:
+                    if isinstance(latest_record.metrics, dict):
+                        last_metrics = latest_record.metrics
+                    else:
+                        last_metrics = latest_record.metrics[-1]
+                    logger.info(f"Previous best val loss: {last_metrics.get('best_val_loss', 'N/A')}")
 
-        # except ValueError as e:
-        #     logger.error(f"Failed to load checkpoint: {e}")
-        #     return
-        # except Exception as e:
-        #     logger.error(f"Error loading checkpoint: {e}")
-        #     return
+        except ValueError as e:
+            logger.error(f"Failed to load checkpoint: {e}")
+            return
+        except Exception as e:
+            logger.error(f"Error loading checkpoint: {e}")
+            return
 
         logger.info(f"Model parameters loaded from {checkpoint_path}")
     else:

@@ -171,7 +171,8 @@ def run_evaluation():
 
 
     if args.create_visual_report:
-        logger.info("Creating visual report for the model output...")
+        pass # TODO adapt create_visual_report function with hybrid model.
+        # logger.info("Creating visual report for the model output...")
         # core.generate_visual_report(artifacts_dir=artifacts_dir, dataset_info=dataset_info, data=test_ds)
 
 

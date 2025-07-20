@@ -371,15 +371,15 @@ class R2StorageService(StorageService):
                     logger.error(f"Failed to delete temporary file {zip_path}: {e}")
 
     @classmethod
-    def is_remote_path(path: str) -> bool:
+    def is_remote_path(cls, path_: str) -> bool:
         """
         Check if the given path is a remote R2 path.
         """
         return (
-                path.startswith("r2://")
-                or path.startswith("s3://")
-                or path.startswith("https://")
-                or path.startswith("http://")
+                path_.startswith("r2://")
+                or path_.startswith("s3://")
+                or path_.startswith("https://")
+                or path_.startswith("http://")
         ) and is_oss_enabled()
 
     @classmethod
