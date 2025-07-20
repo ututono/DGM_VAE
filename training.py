@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from core.configs.arguments import get_arguments, print_and_save_arguments
 from core.configs.logging_config import setup_ml_logging_and_mlflow
 from core.configs.values import DataSplitType, VAEModelType
-from core.data.hybrid_dataset import MultiDatasetLoader, collate_conditioned_samples
+from core.data.hybrid_dataset import MultiDatasetLoader, collate_conditioned_samples, init_dataloader
 from core.utils.general import set_random_seed, root_path, symlink_force, apply_smoke_test_settings
 
 sys.path.insert(0, '../')
@@ -17,18 +17,15 @@ sys.path.insert(0, '../')
 from core.core import Core
 from core.loss_function import LossFunction
 from core.optimizer import Optimizer
-from core.data.dataset import load_medmnist_data
-from core.vae_agent import VariationalAutoEncoder
+from core.vae_agent import init_and_load_model
 from core.utils.saving import save_metrics, save_model
 from core.visualization.plotting import plot_data
-from core.models import VanillaVAE, get_model
+
 from core.loss_function import VAELoss
 
 import torch
-import torch.nn.functional as F
-import torch.nn as nn
+
 from torchvision.utils import save_image
-from sklearn.datasets import make_circles
 import pandas as pd
 
 logger = logging.getLogger(__name__)

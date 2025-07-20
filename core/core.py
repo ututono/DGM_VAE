@@ -35,7 +35,7 @@ class Core():
             train_sampler=None,
             val_sampler=None,
             pin_memory=False,
-            prefetch_factor=2
+            prefetch_factor=2,
     ):
         training_dataloader = DataLoader(
             training_data,
