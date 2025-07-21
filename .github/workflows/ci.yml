@@ -1,0 +1,68 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements_mini.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements_mini.txt
+
+    - name: Run basic training test
+      run: |
+        python training.py --dataset_names "chestmnist" --image_size 28 --disable_mlflow --save_model --smoke_test
+
+    - name: Run evaluation test
+      run: |
+        python test.py --checkpoint_path outputs/latest/model --dataset_names "chestmnist" --image_size 28 --smoke_test
+
+    - name: Verify training outputs
+      run: |
+        # Check if training completed and created expected outputs
+        if [ -d "outputs" ]; then
+          echo "✓ Outputs directory created"
+          find outputs -name "*.json" -o -name "*.png" -o -name "*.pth.tar" | head -10
+        else
+          echo "✗ No outputs directory found"
+          exit 1
+        fi
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: training-outputs
+        path: |
+          outputs/latest
+          logs/latest
+        if-no-files-found: warn
+        retention-days: 7
+
+    - name: Clean up
+      run: |
+        rm -rf outputs/latest/model
+        rm -rf ~/.cache/pip

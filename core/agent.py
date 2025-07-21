@@ -1,4 +1,6 @@
 from abc import abstractmethod, ABC
+from os import PathLike
+
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from core.optimizer import Optimizer
@@ -6,11 +8,15 @@ from core.loss_function import LossFunction
 from core.utils.metrics import Metrics
 
 import torch
-from typing import List, Dict
+from typing import List, Dict, Any
 from tqdm import tqdm
 
 class AbstractAgent(ABC):
-    def __init__(self, model: nn.Module, device: str, metrics: Dict[str, Metrics]):
+    def __init__(
+            self, model: nn.Module,
+            device: str,
+            metrics: Dict[str, Metrics],
+    ):
         self._model: nn.Module = model.to(device=device)
         self._device = device
         self._metrics: Dict[str, Metrics] = metrics
@@ -73,3 +79,16 @@ class AbstractAgent(ABC):
     
     def get_parameters(self):
         return self._model.parameters()
+
+
+    def save_checkpoint(self, path: PathLike, args: Dict[str, Any] = None):
+        """
+        Save the model and its historical training records to a file.
+        """
+        pass
+
+    def load_checkpoint(self, path: PathLike):
+        """
+        Load the model and its historical training records from a file.
+        """
+        pass

@@ -1,0 +1,17 @@
+matplotlib==3.10.3
+mlflow==3.1.0
+mlflow_skinny==3.1.0
+medmnist==3.0.2
+numpy
+pandas==2.3.1
+python-dotenv==1.1.1
+rootutils==1.0.7
+scikit_learn==1.7.0
+seaborn==0.13.2
+torch==2.7.1
+torchsummary==1.5.1
+torchvision==0.22.1
+torchviz==0.0.3
+tqdm==4.67.1
+pytimeparse
+boto3

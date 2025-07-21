@@ -1,9 +1,16 @@
 import torch
 import numpy as np
 from sklearn.model_selection import train_test_split
-from typing import Tuple
+from typing import Tuple, Optional, List
 from core.data.backend import NumpyBackend, TorchBackend
 import torch.nn.functional as F
+
+from torchvision import transforms
+
+import medmnist
+from medmnist import INFO
+
+from core.configs.values import DataSplitType
 
 
 class Dataset():
@@ -40,4 +47,108 @@ class Dataset():
 
     def __repr__(self):
         return f"Number of samples: {self._sources.size(0)}"
-    
+
+
+def load_medmnist_data(
+        dataset_name: str ='pathmnist',
+        image_size: int = 28,
+        download=True,
+        custom_transform:Optional[List] = None,
+        as_rgb: bool = False
+) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader, torch.utils.data.DataLoader, dict]:
+    """
+    Load MedMNIST dataset
+    @:param dataset_name: Name of the MedMNIST dataset to load
+    @:param data_flag: Size flag for the dataset (e.g., '28' for 28x28 images)
+    @:param download: Whether to download the dataset if not already present
+    @:return: Tuple of train_loader, val_loader, test_loader, info
+
+    """
+    def _load_dataset(data_class, split, transform, download, image_size, as_rgb):
+        return data_class(
+            split=split,
+            transform=transform,
+            download=download,
+            as_rgb=as_rgb,
+            size=image_size
+        )
+
+    def _check_is_multi_label(dataset) -> bool:
+        """
+        Check if the dataset is multi-label
+
+        Logic:
+        - Single-label: if label shape is () or (1,)
+        - Multi-label: if label shape is (n_classes,) or (n_samples, n_classes) where n_classes > 1
+        """
+        _, sample_label = dataset[0]
+        if isinstance(sample_label, torch.Tensor):
+            label_shape = sample_label.shape
+        else:
+            label_shape = torch.tensor(sample_label).shape
+
+        is_multi_label = False
+        if len(label_shape) < 1:
+            is_multi_label = False
+
+            return is_multi_label
+        else:
+            if label_shape[0] > 1:
+                is_multi_label = True
+            elif len(label_shape) > 1 and label_shape[1] > 1:
+                is_multi_label = True
+            else:
+                is_multi_label = False
+        return is_multi_label
+
+
+    info = INFO[dataset_name.lower()]
+    task = info['task']
+    n_channels = info['n_channels']
+    n_classes = len(info['label'])
+
+    DataClass = getattr(medmnist, info['python_class'])
+
+    # Define transforms
+    if custom_transform is not None:
+        data_transform = transforms.Compose(custom_transform)
+    else:
+        # Default transforms for MedMNIST datasets according to an [example](https://colab.research.google.com/github/MedMNIST/MedMNIST/blob/main/examples/getting_started.ipynb#scrollTo=uJDrVvTmfUyE&line=7&uniqifier=1) from the medmnist repository
+        data_transform = transforms.Compose([
+            transforms.ToTensor(),
+        ])
+
+    # # Load datasets
+    train_dataset = _load_dataset(
+        DataClass,
+        split=DataSplitType.TRAIN,
+        transform=data_transform,
+        download=download,
+        image_size=image_size,
+        as_rgb=as_rgb
+    )
+
+    val_dataset = _load_dataset(
+        DataClass,
+        split=DataSplitType.VALIDATION,
+        transform=data_transform,
+        download=download,
+        image_size=image_size,
+        as_rgb=as_rgb
+    )
+
+    test_dataset = _load_dataset(
+        DataClass,
+        split=DataSplitType.TEST,
+        transform=data_transform,
+        download=download,
+        image_size=image_size,
+        as_rgb=as_rgb
+    )
+
+    is_multi_label = _check_is_multi_label(train_dataset)
+    assert is_multi_label == _check_is_multi_label(val_dataset), "Validation dataset label type does not match training dataset"
+
+    info['is_multi_label'] = is_multi_label
+
+    return train_dataset, val_dataset, test_dataset, info
