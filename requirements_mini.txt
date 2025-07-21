@@ -14,3 +14,4 @@ torchvision==0.22.1
 torchviz==0.0.3
 tqdm==4.67.1
 pytimeparse
+boto3
